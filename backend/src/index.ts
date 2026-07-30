@@ -12,6 +12,10 @@ import { CatalogEnrichmentService } from './services/catalog-enrichment-service.
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env') });
+if (process.env.APP_ENV === 'stage') {
+  dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env.stage'), override: true });
+}
+process.env.DATABASE_URL ??= 'file:./dev.db';
 
 const app = express();
 const prisma = new PrismaClient();
