@@ -105,3 +105,4 @@ Discogs Manager is a personal, local-first application for cataloging a CD colle
 ## Working agreement
 
 - Keep this file updated when we make a durable product, data-model, API, or workflow decision.
+- The `e2e` npm workspace contains a Playwright foundation: a read-only catalog API smoke test and UI navigation smoke test. It targets the running local frontend/backend by default, with `E2E_APP_URL` and `E2E_API_URL` overrides. Before adding mutation coverage, create a disposable SQLite test database, seed data, and mocked Discogs/eBay responses so tests never write to the personal collection database.

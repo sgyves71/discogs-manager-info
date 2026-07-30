@@ -11,3 +11,5 @@ frontend/certs/
 *.tsbuildinfo
 frontend/vite.config.js
 frontend/vite.config.d.ts
+e2e/playwright-report/
+e2e/test-results/
