@@ -63,6 +63,15 @@ type DiscogsReleaseTrack = {
   duration: string | null;
 };
 
+type MarketStatsBackfill = {
+  status: 'idle' | 'running' | 'complete' | 'failed';
+  processed: number;
+  stored?: number;
+  skipped: number;
+  total: number;
+  error: string | null;
+};
+
 type YouTubeVideoMatch = {
   videoId: string;
   title: string;
@@ -236,6 +245,8 @@ function App() {
   const [musicLibraryPath, setMusicLibraryPath] = useState('H:\\Music\\Rips');
   const [musicLibraryStatus, setMusicLibraryStatus] = useState('');
   const [savingMusicLibrary, setSavingMusicLibrary] = useState(false);
+  const [marketStatsBackfill, setMarketStatsBackfill] = useState<MarketStatsBackfill | null>(null);
+  const [marketStatsBackfillStatus, setMarketStatsBackfillStatus] = useState('');
   const [ebayListingStats, setEbayListingStats] = useState<EBayActiveListingStats | null>(null);
   const [ebayListingStatus, setEbayListingStatus] = useState('');
   const [releaseContext, setReleaseContext] = useState<DiscogsReleaseContext | null>(null);
@@ -285,8 +296,18 @@ function App() {
         if (!cancelled) setMusicLibraryStatus('Unable to load the local music-library settings.');
       }
     };
+    const loadMarketStatsBackfill = async () => {
+      try {
+        const response = await fetch('/api/catalog-discogs-market-stats-backfill');
+        const data = await response.json() as MarketStatsBackfill;
+        if (!cancelled) setMarketStatsBackfill(data);
+      } catch {
+        if (!cancelled) setMarketStatsBackfillStatus('Unable to load valuation-update progress.');
+      }
+    };
     void loadLibrary();
-    const interval = window.setInterval(() => { void loadLibrary(); }, 1500);
+    void loadMarketStatsBackfill();
+    const interval = window.setInterval(() => { void loadLibrary(); void loadMarketStatsBackfill(); }, 1500);
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [activePage]);
 
@@ -1002,6 +1023,21 @@ function App() {
     }
   }
 
+  async function startMarketStatsBackfill() {
+    const confirmed = window.confirm('Update valuations visits each cataloged Discogs release page one at a time. It may take around 30 minutes for a full collection, but you can keep using the app while it runs. Start the update now?');
+    if (!confirmed) return;
+    setMarketStatsBackfillStatus('Starting valuation update...');
+    try {
+      const response = await fetch('/api/catalog-discogs-market-stats-backfill', { method: 'POST' });
+      const data = await response.json() as MarketStatsBackfill & { error?: string };
+      if (!response.ok) throw new Error(data.error || 'Unable to start the valuation update.');
+      setMarketStatsBackfill(data);
+      setMarketStatsBackfillStatus('Valuation update started. You can leave this page while it runs.');
+    } catch (error) {
+      setMarketStatsBackfillStatus(error instanceof Error ? error.message : 'Unable to start the valuation update.');
+    }
+  }
+
   function beginManualPersonalAlbumMatch() {
     if (!personalTrackNotFoundPrompt) return;
     setPersonalTrackNotFoundPrompt(null);
@@ -1165,6 +1201,17 @@ function App() {
             {musicLibrary?.scan.status === 'scanning' ? <p className="hint">Scanning: {musicLibrary.scan.scannedFiles.toLocaleString()} files checked · {musicLibrary.scan.indexedFiles.toLocaleString()} indexed · {musicLibrary.scan.skippedFiles.toLocaleString()} skipped</p> : null}
             {musicLibrary?.scan.status === 'failed' ? <p className="hint">Scan failed: {musicLibrary.scan.error}</p> : null}
             {musicLibraryStatus ? <p className="hint">{musicLibraryStatus}</p> : null}
+          </div>
+          <div className="card music-library-card">
+            <h2>Catalog valuations</h2>
+            <p>Refresh Discogs Last Sold, Low, Median, and High values for every catalog entry with a Discogs release. The process runs in the background at a respectful pace.</p>
+            <div className="form-actions">
+              <button type="button" onClick={() => void startMarketStatsBackfill()} disabled={marketStatsBackfill?.status === 'running'}>{marketStatsBackfill?.status === 'running' ? 'Updating valuations...' : 'Update valuations'}</button>
+            </div>
+            {marketStatsBackfill?.status === 'running' ? <p className="hint">Progress: {marketStatsBackfill.processed.toLocaleString()} / {marketStatsBackfill.total.toLocaleString()} releases checked Â· {marketStatsBackfill.stored ?? 0} with market data Â· {marketStatsBackfill.skipped.toLocaleString()} unavailable</p> : null}
+            {marketStatsBackfill?.status === 'complete' ? <p className="hint">Last update complete: {marketStatsBackfill.processed.toLocaleString()} releases checked Â· {marketStatsBackfill.stored ?? 0} with market data Â· {marketStatsBackfill.skipped.toLocaleString()} unavailable.</p> : null}
+            {marketStatsBackfill?.status === 'failed' ? <p className="hint">Valuation update failed: {marketStatsBackfill.error || 'Unknown error.'}</p> : null}
+            {marketStatsBackfillStatus ? <p className="hint">{marketStatsBackfillStatus}</p> : null}
           </div>
         </>
       )}

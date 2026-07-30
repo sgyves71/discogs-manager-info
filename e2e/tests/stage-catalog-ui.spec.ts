@@ -15,4 +15,14 @@ test.describe('Stage Catalog User Interface', () => {
     await expect(page.getByText('Stage Album', { exact: true })).toBeVisible();
     await expect(page.getByText('Showing 1–1 of 1')).toBeVisible();
   });
+
+  test('Warns Before Starting a Valuation Update', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Music Library', exact: true }).click();
+    page.once('dialog', (dialog) => {
+      expect(dialog.message()).toContain('may take around 30 minutes');
+      void dialog.dismiss();
+    });
+    await page.getByRole('button', { name: 'Update valuations', exact: true }).click();
+  });
 });
