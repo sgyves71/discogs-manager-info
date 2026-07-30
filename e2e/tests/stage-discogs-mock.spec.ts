@@ -46,6 +46,7 @@ test.describe('Stage Discogs Mock', () => {
     await expect(selectedResult).toContainText('Rock');
     await expect(selectedResult).toContainText('Hard Rock');
     await expect(selectedResult).toContainText(/synthetic CD release supplies stable label/i);
+    await expect(page.getByText(/synthetic artist used only for repeatable automated testing/i)).toHaveCount(0);
   });
 
   test('Filters Search Results by Country When Multiple Countries Are Available', async ({ page }) => {

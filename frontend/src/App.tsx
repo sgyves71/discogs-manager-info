@@ -1452,27 +1452,17 @@ function App() {
                       </div>
                       <div className="release-context-card" aria-live="polite">
                         {releaseContextStatus ? <p>{releaseContextStatus}</p> : null}
-                        {releaseContext && (
+                        {releaseContext && releaseContext.descriptionSource !== 'artist' && (
                           <>
-                            {releaseContext.artistProfile && releaseContext.descriptionSource !== 'artist' && (
-                              <div>
-                                <strong>Artist summary</strong>
-                                <p className="artist-summary-preview"><span className="artist-summary-desktop">{formatDiscogsText(releaseContext.artistProfile)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(releaseContext.artistProfile))}</span></p>
-                                <button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(releaseContext.artistProfile!))}>Show All</button>
-                              </div>
-                            )}
                             <div>
                               <strong>
                                 {releaseContext.descriptionSource === 'release'
-                                  ? 'Release notes'
+                                  ? 'Release Notes'
                                   : releaseContext.descriptionSource === 'album'
-                                    ? 'Album notes'
-                                    : releaseContext.descriptionSource === 'artist'
-                                      ? 'Artist summary'
-                                      : 'Discogs information'}
+                                    ? 'Album Notes'
+                                    : 'Discogs Information'}
                               </strong>
-                              <p className={releaseContext.descriptionSource === 'artist' ? 'artist-summary-preview' : undefined}>{releaseContext.description ? <>{releaseContext.descriptionSource === 'artist' ? <><span className="artist-summary-desktop">{formatDiscogsText(releaseContext.description)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(releaseContext.description))}</span></> : formatDiscogsText(releaseContext.description)}</> : 'Discogs does not provide release, album, or artist notes for this selection.'}</p>
-                              {releaseContext.descriptionSource === 'artist' && releaseContext.description ? <button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(releaseContext.description!))}>Show All</button> : null}
+                              <p>{releaseContext.description ? formatDiscogsText(releaseContext.description) : 'Discogs does not provide release or album notes for this selection.'}</p>
                             </div>
                           </>
                         )}
