@@ -37,7 +37,7 @@ const ebayClientSecret = process.env.EBAY_CLIENT_SECRET?.trim();
 const ebayMarketplaceId = process.env.EBAY_MARKETPLACE_ID?.trim() || 'EBAY_US';
 const youtubeApiKey = process.env.YOUTUBE_API_KEY?.trim();
 const isStageEnvironment = process.env.APP_ENV === 'stage';
-const catalogEnrichment = new CatalogEnrichmentService(prisma, discogsToken);
+const catalogEnrichment = new CatalogEnrichmentService(prisma, discogsToken, isStageEnvironment);
 const coverCache = new Map<number, string | null>();
 const pendingCoverLookups = new Map<number, Promise<string | null>>();
 const libraryScanState: { status: 'idle' | 'scanning' | 'complete' | 'failed'; scannedFiles: number; indexedFiles: number; skippedFiles: number; error: string | null } = {
@@ -1085,6 +1085,8 @@ app.post('/api/cds', async (req, res) => {
     } catch (error) {
       console.error('Catalog Discogs context save failed:', error);
     }
+    void catalogEnrichment.refreshMarketStats(created.id, discogsId)
+      .catch((error) => console.error('Catalog market-statistics refresh failed:', error));
   }
   const storedEntry = await prisma.cdEntry.findUnique({ where: { id: created.id } });
   res.status(201).json({ ...(storedEntry ?? created), coverImageData: undefined, coverImageMimeType: undefined, hasCover });
@@ -1170,6 +1172,12 @@ app.patch('/api/cds/:id', async (req, res) => {
         discogsNotes: null,
         discogsNotesSource: null,
         discogsContextUpdatedAt: null,
+        discogsLastSoldAt: null,
+        discogsMarketLow: null,
+        discogsMarketMedian: null,
+        discogsMarketHigh: null,
+        discogsMarketCurrency: null,
+        discogsMarketStatsCheckedAt: null,
       } : {}),
     },
   });
@@ -1186,6 +1194,8 @@ app.patch('/api/cds/:id', async (req, res) => {
   } catch (error) {
     console.error('Corrected catalog Discogs context save failed:', error);
   }
+  void catalogEnrichment.refreshMarketStats(updated.id, discogsId)
+    .catch((error) => console.error('Corrected catalog market-statistics refresh failed:', error));
   const storedEntry = await prisma.cdEntry.findUnique({ where: { id: updated.id } });
   res.json({ ...(storedEntry ?? updated), coverImageData: undefined, coverImageMimeType: undefined, hasCover });
 });
