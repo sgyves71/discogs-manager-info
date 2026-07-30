@@ -14,11 +14,21 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env') });
 if (process.env.APP_ENV === 'stage') {
   dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env.stage'), override: true });
+  // Stage is deliberately isolated from external integrations and personal data.
+  process.env.DISCOGS_TOKEN = '';
+  process.env.EBAY_CLIENT_ID = '';
+  process.env.EBAY_CLIENT_SECRET = '';
+  process.env.YOUTUBE_API_KEY = '';
 }
 process.env.DATABASE_URL ??= 'file:./dev.db';
+if (process.env.APP_ENV === 'stage') {
+  console.log(`Stage mode enabled with database ${process.env.DATABASE_URL} on port ${process.env.PORT ?? '3101'}.`);
+}
 
 const app = express();
-const prisma = new PrismaClient();
+const prisma = new PrismaClient(process.env.APP_ENV === 'stage'
+  ? { datasources: { db: { url: process.env.DATABASE_URL } } }
+  : undefined);
 const port = process.env.PORT ? Number(process.env.PORT) : 3100;
 const discogsToken = process.env.DISCOGS_TOKEN?.trim();
 const ebayClientId = process.env.EBAY_CLIENT_ID?.trim();

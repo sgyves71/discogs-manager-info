@@ -12,13 +12,13 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: '0.0.0.0',
-    port: 5173,
+    port: Number(process.env.VITE_PORT || 5173),
     https: fs.existsSync(certificatePath) && fs.existsSync(keyPath)
       ? { cert: fs.readFileSync(certificatePath), key: fs.readFileSync(keyPath) }
       : undefined,
     proxy: {
       '/api': {
-        target: 'http://localhost:3100',
+        target: process.env.VITE_API_PROXY_TARGET || 'http://localhost:3100',
         changeOrigin: true,
       },
     },

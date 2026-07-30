@@ -9,6 +9,9 @@
     "test:e2e:ui": "npm run test:ui --workspace e2e",
     "test:e2e:api": "npm run test:api --workspace e2e",
     "stage:db:create": "node scripts/create-stage-db.mjs",
+    "stage:reset": "node scripts/create-stage-db.mjs --reset && node scripts/seed-stage-db.mjs",
+    "stage:dev": "concurrently -n stage-frontend,stage-backend -c blue,green \"node scripts/start-stage-frontend.mjs\" \"node scripts/start-stage-backend.mjs\"",
+    "test:e2e:stage": "node scripts/run-stage-e2e.mjs",
     "postinstall": "npm run prisma:generate --workspace backend"
   },
   "devDependencies": {

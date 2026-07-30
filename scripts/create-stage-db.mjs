@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
@@ -9,8 +9,15 @@ const prismaDirectory = path.join(root, 'backend', 'prisma');
 const stageDatabasePath = path.join(prismaDirectory, 'stage.db');
 const migrationsDirectory = path.join(prismaDirectory, 'migrations');
 
+if (process.argv.includes('--reset')) {
+  for (const suffix of ['', '-journal', '-shm', '-wal']) {
+    const databaseFile = `${stageDatabasePath}${suffix}`;
+    if (existsSync(databaseFile)) rmSync(databaseFile);
+  }
+}
+
 if (existsSync(stageDatabasePath)) {
-  throw new Error(`Stage database already exists at ${stageDatabasePath}. A reset command will be added with Stage seed data.`);
+  throw new Error(`Stage database already exists at ${stageDatabasePath}. Run npm run stage:reset to replace only the disposable Stage database.`);
 }
 
 const database = new DatabaseSync(stageDatabasePath);
