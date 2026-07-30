@@ -23,6 +23,7 @@ export type CdEntry = {
   discogsMarketCurrency?: string | null;
   discogsMarketStatsCheckedAt?: string | null;
   hasCover?: boolean;
+  coverImageUpdatedAt?: string | null;
   artistSummary?: string | null;
   discogsNotes?: string | null;
   discogsNotesSource?: 'release' | 'album' | 'artist' | null;

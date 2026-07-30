@@ -161,6 +161,10 @@ function formatDiscogsMarketDate(value: string | null | undefined): string {
   return Number.isNaN(date.getTime()) ? 'Not available' : date.toLocaleDateString();
 }
 
+function catalogCoverUrl(entry: Pick<CdEntry, 'id' | 'coverImageUpdatedAt'>): string {
+  return `/api/cds/${entry.id}/cover${entry.coverImageUpdatedAt ? `?updated=${encodeURIComponent(entry.coverImageUpdatedAt)}` : ''}`;
+}
+
 function cleanExternalSearchText(value: string): string {
   return value
     .replace(/\s*\(\d+\)(?=\s*(?:=|$))/gu, '')
@@ -459,7 +463,7 @@ function App() {
       });
     }
     if (viewedEntry.hasCover) {
-      setDetailCoverImage(`/api/cds/${viewedEntry.id}/cover`);
+      setDetailCoverImage(catalogCoverUrl(viewedEntry));
     }
     if (viewedEntry.discogsId) {
       lookups.push(

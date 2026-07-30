@@ -24,6 +24,8 @@ export function CatalogPage({
   items, search, total, start, end, page, totalPages, status, hasOpenDetail,
   onSearchChange, onOpenDetail, onChangeAssociation, onSearchEbay, onRemove, onPageChange, children,
 }: CatalogPageProps) {
+  const coverUrl = (item: CdEntry) => `/api/cds/${item.id}/cover${item.coverImageUpdatedAt ? `?updated=${encodeURIComponent(item.coverImageUpdatedAt)}` : ''}`;
+
   return (
     <>
       <h1>Catalog</h1>
@@ -42,7 +44,7 @@ export function CatalogPage({
             <li key={item.id} className="collection-item" role="button" tabIndex={0} onClick={() => { if (!hasOpenDetail) onOpenDetail(item); }} onKeyDown={(event) => {
               if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (!hasOpenDetail) onOpenDetail(item); }
             }}>
-              <div className="collection-cover">{item.hasCover ? <img src={`/api/cds/${item.id}/cover`} alt="" /> : <span aria-hidden="true">♫</span>}</div>
+              <div className="collection-cover">{item.hasCover ? <img src={coverUrl(item)} alt="" /> : <span aria-hidden="true">♫</span>}</div>
               <div className="collection-summary"><div><span>Artist</span><strong>{item.artist}</strong></div><div><span>Album</span><strong>{item.title}</strong></div><div><span>Year</span><strong>{item.year ?? 'Unknown'}</strong></div></div>
               <div className="collection-actions" onClick={(event) => event.stopPropagation()}>
                 <details className="row-menu">
