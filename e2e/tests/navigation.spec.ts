@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('can navigate between Search, Catalog, and Music Library', async ({ page }) => {
+test('Navigates Between Search, Catalog, and Music Library', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Search & Scan' })).toBeVisible();
 
