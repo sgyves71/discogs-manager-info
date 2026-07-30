@@ -212,6 +212,7 @@ function App() {
   const [personalBrowsableAlbumFolders, setPersonalBrowsableAlbumFolders] = useState<PersonalBrowsableAlbumFolder[] | null>(null);
   const [personalFolderSearch, setPersonalFolderSearch] = useState('');
   const [showPersonalFolderMapping, setShowPersonalFolderMapping] = useState(false);
+  const [personalTrackNotFoundPrompt, setPersonalTrackNotFoundPrompt] = useState<DiscogsReleaseTrack | null>(null);
   const [personalAlbumMappingStatus, setPersonalAlbumMappingStatus] = useState('');
   const [musicLibrary, setMusicLibrary] = useState<MusicLibraryInfo | null>(null);
   const [musicLibraryPath, setMusicLibraryPath] = useState('H:\\Music\\Rips');
@@ -228,6 +229,7 @@ function App() {
   const [status, setStatus] = useState('');
   const addCardRef = useRef<HTMLDivElement>(null);
   const selectedReleasePanelRef = useRef<HTMLElement>(null);
+  const personalAlbumMappingRef = useRef<HTMLDivElement>(null);
 
   function openSelectedReleaseEditor() {
     selectedReleasePanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -370,6 +372,7 @@ function App() {
       setPersonalBrowsableAlbumFolders(null);
       setPersonalFolderSearch('');
       setShowPersonalFolderMapping(false);
+      setPersonalTrackNotFoundPrompt(null);
       setPersonalAlbumMappingStatus('');
       return;
     }
@@ -395,6 +398,7 @@ function App() {
     setPersonalBrowsableAlbumFolders(null);
     setPersonalFolderSearch('');
     setShowPersonalFolderMapping(false);
+    setPersonalTrackNotFoundPrompt(null);
     setPersonalAlbumMappingStatus('');
     setShowTracklist(false);
     setYouTubeStatus('');
@@ -922,9 +926,8 @@ function App() {
       } else if (data.status === 'unindexed') {
         setPersonalMusicStatus('Your music library has not been scanned yet. Open Music Library in the left navigation and choose Scan library.');
       } else {
-        setShowPersonalFolderMapping(true);
-        setPersonalMusicStatus(`No tagged local copy of “${track.title}” was found. Choose its album folder below to map this release.`);
-        void findPersonalAlbumFolder();
+        setPersonalMusicStatus(`No tagged local copy of “${track.title}” was found.`);
+        setPersonalTrackNotFoundPrompt(track);
       }
     } catch (error) {
       setPersonalMusicStatus(error instanceof Error ? error.message : 'Unable to search the personal music library.');
@@ -980,6 +983,14 @@ function App() {
     } catch (error) {
       setPersonalAlbumMappingStatus(error instanceof Error ? error.message : 'Unable to save the personal album folder.');
     }
+  }
+
+  function beginManualPersonalAlbumMatch() {
+    if (!personalTrackNotFoundPrompt) return;
+    setPersonalTrackNotFoundPrompt(null);
+    setShowPersonalFolderMapping(true);
+    void findPersonalAlbumFolder();
+    window.setTimeout(() => personalAlbumMappingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
   }
 
   async function browsePersonalArtistFolders() {
@@ -1470,7 +1481,7 @@ function App() {
             </form> : null}
             {editingEstimatedValue ? <div className="detail-section estimated-value-editor"><strong>Update estimated value</strong><div className="inline-form"><input type="number" min="0" step="0.01" value={estimatedValueInput} onChange={(event) => setEstimatedValueInput(event.target.value)} placeholder="Leave blank to clear" aria-label="Estimated value" /><button type="button" onClick={() => void saveEstimatedValue()}>Save value</button><button type="button" className="secondary-button" onClick={() => { setEditingEstimatedValue(false); setEstimatedValueStatus(''); }}>Cancel</button></div>{estimatedValueStatus ? <p className="hint">{estimatedValueStatus}</p> : null}</div> : null}
             {viewedEntry.notes ? <div className="detail-section"><strong>Your notes</strong><p>{viewedEntry.notes}</p></div> : null}
-            {showPersonalFolderMapping ? <div className="detail-section personal-album-mapping">
+            {showPersonalFolderMapping ? <div className="detail-section personal-album-mapping" ref={personalAlbumMappingRef}>
               <strong>Personal album folder</strong>
               <p>{viewedEntry.personalAlbumFolderPath ? 'Saved folder is preferred for local track playback.' : 'Optional fallback when automatic local matching cannot identify the correct album.'}</p>
               {viewedEntry.personalAlbumFolderPath ? <code>{viewedEntry.personalAlbumFolderPath}</code> : null}
@@ -1642,6 +1653,7 @@ function App() {
       </CatalogPage>
       {localAudioPlayer ? <LocalAudioPlayer {...localAudioPlayer} onClose={() => setLocalAudioPlayer(null)} onError={() => setPersonalMusicStatus('This local file could not be played. It may have been moved or renamed since the last scan; open Music Library and scan again.')} /> : null}
       {expandedArtistSummary ? <ArtistSummaryDialog summary={expandedArtistSummary} onClose={() => setExpandedArtistSummary(null)} /> : null}
+      {personalTrackNotFoundPrompt ? <div className="artist-summary-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPersonalTrackNotFoundPrompt(null); }}><section className="artist-summary-dialog" role="dialog" aria-modal="true" aria-label="Personal music match not found"><div className="artist-summary-dialog-header"><h2>No personal match found</h2><button type="button" className="secondary-button" onClick={() => setPersonalTrackNotFoundPrompt(null)}>No</button></div><p>No tagged local match was found for <strong>{personalTrackNotFoundPrompt.title}</strong>. If you believe the track is in your scanned music collection, you can make a manual album-folder match.</p><div className="form-actions"><button type="button" onClick={beginManualPersonalAlbumMatch}>Yes, make manual match</button><button type="button" className="secondary-button" onClick={() => setPersonalTrackNotFoundPrompt(null)}>No, not now</button></div></section></div> : null}
         </>
       )}
       </main>
