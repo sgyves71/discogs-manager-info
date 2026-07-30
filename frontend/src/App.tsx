@@ -52,6 +52,13 @@ type DiscogsReleaseContext = {
   style: string | null;
 };
 
+type SearchReleaseDetailsCache = {
+  release: DiscogsResult;
+  catalogInfoLoaded?: boolean;
+  context?: DiscogsReleaseContext;
+  ebay?: { stats: EBayActiveListingStats; status: string };
+};
+
 type DiscogsReleaseImage = {
   url: string;
   thumbnailUrl: string;
@@ -210,6 +217,7 @@ function App() {
   const [results, setResults] = useState<DiscogsResult[]>([]);
   const [coverImages, setCoverImages] = useState<Record<number, string | null>>({});
   const requestedCoverIds = useRef(new Set<number>());
+  const searchReleaseDetailsCache = useRef(new Map<number, SearchReleaseDetailsCache>());
   const [selectedRelease, setSelectedRelease] = useState<DiscogsResult | null>(null);
   const [releaseCatalogInfoStatus, setReleaseCatalogInfoStatus] = useState('');
   const [entryBeingCorrected, setEntryBeingCorrected] = useState<CdEntry | null>(null);
@@ -372,6 +380,13 @@ function App() {
       return;
     }
 
+    const cached = searchReleaseDetailsCache.current.get(selectedRelease.id)?.context;
+    if (cached) {
+      setReleaseContext(cached);
+      setReleaseContextStatus('');
+      return;
+    }
+
     let cancelled = false;
     setReleaseContext(null);
     setReleaseContextStatus('Loading Discogs artist and release information...');
@@ -384,6 +399,9 @@ function App() {
       })
       .then((context) => {
         if (!cancelled) {
+          const existing = searchReleaseDetailsCache.current.get(selectedRelease.id);
+          if (existing) existing.context = context;
+          else searchReleaseDetailsCache.current.set(selectedRelease.id, { release: selectedRelease, context });
           setReleaseContext(context);
           setReleaseContextStatus('');
         }
@@ -534,6 +552,13 @@ function App() {
       return;
     }
 
+    const cached = searchReleaseDetailsCache.current.get(selectedRelease.id)?.ebay;
+    if (cached) {
+      setEbayListingStats(cached.stats);
+      setEbayListingStatus(cached.status);
+      return;
+    }
+
     let cancelled = false;
     setEbayListingStats(null);
     setEbayListingStatus('Loading current eBay listings...');
@@ -548,10 +573,14 @@ function App() {
       })
       .then((stats) => {
         if (cancelled) return;
-        setEbayListingStats(stats);
-        setEbayListingStatus(stats.sampledListingCount
+        const ebayStatus = stats.sampledListingCount
           ? ''
-          : 'No priced active eBay listings were returned for this search.');
+          : 'No priced active eBay listings were returned for this search.';
+        const existing = searchReleaseDetailsCache.current.get(selectedRelease.id);
+        if (existing) existing.ebay = { stats, status: ebayStatus };
+        else searchReleaseDetailsCache.current.set(selectedRelease.id, { release: selectedRelease, ebay: { stats, status: ebayStatus } });
+        setEbayListingStats(stats);
+        setEbayListingStatus(ebayStatus);
       })
       .catch((error: unknown) => {
         if (!cancelled) setEbayListingStatus(error instanceof Error ? error.message : 'Unable to load eBay listings.');
@@ -591,6 +620,7 @@ function App() {
       setResults(normalizedResults);
       setCoverImages({});
       requestedCoverIds.current.clear();
+      searchReleaseDetailsCache.current.clear();
       setSelectedRelease(null);
       setReleaseCatalogInfoStatus('');
       setStatus(normalizedResults.length > 0 ? 'Choose the version you own.' : 'No matches found.');
@@ -612,6 +642,7 @@ function App() {
     setResults([]);
     setCoverImages({});
     requestedCoverIds.current.clear();
+    searchReleaseDetailsCache.current.clear();
     setSelectedRelease(null);
     setReleaseCatalogInfoStatus('');
     setReleaseContext(null);
@@ -625,7 +656,16 @@ function App() {
   }
 
   async function selectSearchResult(release: DiscogsResult) {
+    if (selectedRelease?.id === release.id) return;
     setExpandedArtistSummary(null);
+
+    const cached = searchReleaseDetailsCache.current.get(release.id);
+    if (cached?.catalogInfoLoaded) {
+      setSelectedRelease(cached.release);
+      setReleaseCatalogInfoStatus('Release-specific label, catalog number, and barcode loaded from this search.');
+      return;
+    }
+
     setSelectedRelease(release);
     setReleaseCatalogInfoStatus('Loading release-specific label, catalog number, and barcode...');
 
@@ -641,6 +681,13 @@ function App() {
         barcode: data.barcode ?? null,
       };
       setResults((current) => current.map((item) => item.id === release.id ? enrichedRelease : item));
+      const cachedRelease = searchReleaseDetailsCache.current.get(release.id);
+      if (cachedRelease) {
+        cachedRelease.release = enrichedRelease;
+        cachedRelease.catalogInfoLoaded = true;
+      } else {
+        searchReleaseDetailsCache.current.set(release.id, { release: enrichedRelease, catalogInfoLoaded: true });
+      }
       setSelectedRelease((current) => current?.id === release.id ? enrichedRelease : current);
       setReleaseCatalogInfoStatus('Release-specific label, catalog number, and barcode loaded.');
     } catch (error) {

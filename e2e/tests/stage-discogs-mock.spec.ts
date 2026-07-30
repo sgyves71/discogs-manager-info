@@ -115,4 +115,25 @@ test.describe('Stage Discogs Mock', () => {
     expect(ebayRequests).toBe(0);
     await expect(page.locator('.price-suggestions')).toHaveCount(0);
   });
+
+  test('Reuses Loaded Search Release Details When a Card Is Selected Again', async ({ page }) => {
+    let catalogInfoRequests = 0;
+    await page.route('**/api/discogs/releases/900101/catalog-info', async (route) => {
+      catalogInfoRequests += 1;
+      await route.fallback();
+    });
+
+    await page.goto('/');
+    await page.getByPlaceholder('Artist').fill('Stage Mock Artist');
+    await page.getByPlaceholder('Album Title').fill('Mocked CD Album');
+    await page.getByRole('button', { name: 'Look Up', exact: true }).click();
+    await page.getByText('Mocked CD Album', { exact: true }).click();
+    await expect(page.locator('.result-card.selected')).toContainText('Mock Records');
+
+    await page.getByText('Mocked CD Album (Reissue)', { exact: true }).click();
+    await expect(page.locator('.result-card.selected')).toContainText('Mocked CD Album (Reissue)');
+    await page.getByText('Mocked CD Album', { exact: true }).click();
+    await expect(page.locator('.result-card.selected')).toContainText('Mock Records');
+    expect(catalogInfoRequests).toBe(1);
+  });
 });
