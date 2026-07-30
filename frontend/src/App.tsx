@@ -134,6 +134,24 @@ function previewDiscogsText(text: string, wordLimit = 50): string {
   return words.length > wordLimit ? `${words.slice(0, wordLimit).join(' ')}…` : text;
 }
 
+function formatDiscogsMarketPrice(value: number | null | undefined, currency: string | null | undefined): string {
+  if (value == null) return 'Not available';
+  if (currency) {
+    try {
+      return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(value);
+    } catch {
+      // Use the readable dollar fallback when a page supplies an unfamiliar currency code.
+    }
+  }
+  return `$${value.toFixed(2)}`;
+}
+
+function formatDiscogsMarketDate(value: string | null | undefined): string {
+  if (!value) return 'Not available';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'Not available' : date.toLocaleDateString();
+}
+
 function cleanExternalSearchText(value: string): string {
   return value
     .replace(/\s*\(\d+\)(?=\s*(?:=|$))/gu, '')
@@ -1486,6 +1504,18 @@ function App() {
               {viewedEntry.style ? <div><strong>Style:</strong> {viewedEntry.style}</div> : null}
               <div><strong>Media condition:</strong> {viewedEntry.mediaCondition || 'Not specified'}</div>
               <div><strong>Estimated value:</strong> {viewedEntry.estimatedValue != null ? `$${viewedEntry.estimatedValue.toFixed(2)}` : 'Not set'}</div>
+            </div>
+            <div className="detail-section discogs-market-stats">
+              <strong>Discogs market statistics</strong>
+              {viewedEntry.discogsMarketStatsCheckedAt ? <>
+                <div className="detail-grid">
+                  <div><strong>Last sold:</strong> {formatDiscogsMarketDate(viewedEntry.discogsLastSoldAt)}</div>
+                  <div><strong>Low:</strong> {formatDiscogsMarketPrice(viewedEntry.discogsMarketLow, viewedEntry.discogsMarketCurrency)}</div>
+                  <div><strong>Median:</strong> {formatDiscogsMarketPrice(viewedEntry.discogsMarketMedian, viewedEntry.discogsMarketCurrency)}</div>
+                  <div><strong>High:</strong> {formatDiscogsMarketPrice(viewedEntry.discogsMarketHigh, viewedEntry.discogsMarketCurrency)}</div>
+                </div>
+                <p className="hint">Last checked: {formatDiscogsMarketDate(viewedEntry.discogsMarketStatsCheckedAt)}</p>
+              </> : <p className="hint">Not checked yet.</p>}
             </div>
             {editingCatalogDetails && catalogDetailsForm ? <form className="detail-section catalog-details-editor" onSubmit={saveCatalogDetails}>
               <strong>Edit catalog details</strong>

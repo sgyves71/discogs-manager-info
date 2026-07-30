@@ -16,6 +16,12 @@ export type CdEntry = {
   barcode: string | null;
   mediaCondition: string | null;
   valueLastCheckedAt: string | null;
+  discogsLastSoldAt?: string | null;
+  discogsMarketLow?: number | null;
+  discogsMarketMedian?: number | null;
+  discogsMarketHigh?: number | null;
+  discogsMarketCurrency?: string | null;
+  discogsMarketStatsCheckedAt?: string | null;
   hasCover?: boolean;
   artistSummary?: string | null;
   discogsNotes?: string | null;
