@@ -9,7 +9,7 @@ test.describe('Stage Catalog User Interface', () => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Catalog', exact: true }).click();
 
-    const search = page.getByRole('textbox', { name: 'Search collection' });
+    const search = page.getByRole('textbox', { name: 'Search Collection' });
     await search.fill('Stage Artist');
     await expect(page.getByText('Stage Artist', { exact: true })).toBeVisible();
     await expect(page.getByText('Stage Album', { exact: true })).toBeVisible();
@@ -78,7 +78,7 @@ test.describe('Stage Catalog User Interface', () => {
 
     await page.goto('/');
     await page.getByPlaceholder('Artist').fill('Stage Mock Artist');
-    await page.getByPlaceholder('Album title').fill('Mocked CD Album');
+    await page.getByPlaceholder('Album Title').fill('Mocked CD Album');
     await page.getByRole('button', { name: 'Look Up', exact: true }).click();
     await page.getByText('Mocked CD Album', { exact: true }).click();
     await page.getByRole('button', { name: 'Edit & Add', exact: true }).click();

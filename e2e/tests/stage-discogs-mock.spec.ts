@@ -35,7 +35,7 @@ test.describe('Stage Discogs Mock', () => {
   test('Searches and Selects a Mock Discogs Release in the User Interface', async ({ page }) => {
     await page.goto('/');
     await page.getByPlaceholder('Artist').fill('Stage Mock Artist');
-    await page.getByPlaceholder('Album title').fill('Mocked CD Album');
+    await page.getByPlaceholder('Album Title').fill('Mocked CD Album');
     await page.getByRole('button', { name: 'Look Up', exact: true }).click();
 
     await expect(page.getByText('Mocked CD Album', { exact: true })).toBeVisible();
@@ -51,7 +51,7 @@ test.describe('Stage Discogs Mock', () => {
   test('Filters Search Results by Country When Multiple Countries Are Available', async ({ page }) => {
     await page.goto('/');
     await page.getByPlaceholder('Artist').fill('Stage Mock Artist');
-    await page.getByPlaceholder('Album title').fill('Mocked CD Album');
+    await page.getByPlaceholder('Album Title').fill('Mocked CD Album');
     await page.getByRole('button', { name: 'Look Up', exact: true }).click();
 
     const countryFilter = page.getByRole('combobox', { name: 'Filter search results by country' });
@@ -66,16 +66,16 @@ test.describe('Stage Discogs Mock', () => {
   test('Clears Search Inputs and Results', async ({ page }) => {
     await page.goto('/');
     await page.getByPlaceholder('Artist').fill('Stage Mock Artist');
-    await page.getByPlaceholder('Album title').fill('Mocked CD Album');
-    await page.getByPlaceholder('Catalog number').fill('SEARCH-PLACEHOLDER');
+    await page.getByPlaceholder('Album Title').fill('Mocked CD Album');
+    await page.getByPlaceholder('Catalog Number').fill('SEARCH-PLACEHOLDER');
     await page.getByPlaceholder('Barcode').fill('0123456789012');
     await page.getByRole('button', { name: 'Look Up', exact: true }).click();
     await expect(page.getByText('Mocked CD Album', { exact: true })).toBeVisible();
 
     await page.getByRole('button', { name: 'Clear', exact: true }).click();
     await expect(page.getByPlaceholder('Artist')).toHaveValue('');
-    await expect(page.getByPlaceholder('Album title')).toHaveValue('');
-    await expect(page.getByPlaceholder('Catalog number')).toHaveValue('');
+    await expect(page.getByPlaceholder('Album Title')).toHaveValue('');
+    await expect(page.getByPlaceholder('Catalog Number')).toHaveValue('');
     await expect(page.getByPlaceholder('Barcode')).toHaveValue('');
     await expect(page.getByText('Mocked CD Album', { exact: true })).toBeHidden();
   });

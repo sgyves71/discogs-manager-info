@@ -33,7 +33,7 @@ export function CatalogPage({
       <div className="card">
         <h2>Your collection</h2>
         <div className="collection-toolbar">
-          <input value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="Search artist, album, catalog #, or barcode" aria-label="Search collection" />
+          <input value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="Search Artist, Album, Catalog #, or Barcode" aria-label="Search Collection" />
           <span>{total ? `Showing ${start}–${end} of ${total}` : 'No CDs found'}</span>
         </div>
         {status ? <p className="hint collection-status" aria-live="polite">{status}</p> : null}

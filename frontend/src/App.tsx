@@ -1248,7 +1248,7 @@ function App() {
           <p>Connect the folder containing your personally ripped and tagged music. Files remain on this PC and are only streamed locally when you choose to play one.</p>
           <div className="card music-library-card">
             <h2>Personal music folder</h2>
-            <label htmlFor="music-library-path">Library folder</label>
+            <label htmlFor="music-library-path">Library Folder</label>
             <input id="music-library-path" value={musicLibraryPath} onChange={(event) => setMusicLibraryPath(event.target.value)} placeholder="H:\\Music\\Rips" />
             <div className="form-actions">
               <button type="button" onClick={() => void saveMusicLibrary()} disabled={savingMusicLibrary || !musicLibraryPath.trim()}>{savingMusicLibrary ? 'Saving...' : 'Save Folder'}</button>
@@ -1307,7 +1307,7 @@ function App() {
                 setHasSearched(false);
                 setCurrentPage(1);
               }}
-              placeholder="Album title"
+              placeholder="Album Title"
             />
             <input
               value={searchCatalogNumber}
@@ -1316,7 +1316,7 @@ function App() {
                 setHasSearched(false);
                 setCurrentPage(1);
               }}
-              placeholder="Catalog number"
+              placeholder="Catalog Number"
             />
             <input
               value={searchBarcode}
@@ -1403,10 +1403,10 @@ function App() {
                   <strong className="result-artist">{release.artist || 'Unknown artist'}</strong>
                   <div className="result-title">{release.title || 'Untitled release'}</div>
                   <div className="result-details">
-                    <div><strong>Release year:</strong> {release.year ?? 'Unknown'}</div>
-                    <div><strong>{selectedRelease?.id === release.id ? 'Release label:' : 'Search-result label:'}</strong> {release.label ?? 'Unknown'}</div>
+                    <div><strong>Release Year:</strong> {release.year ?? 'Unknown'}</div>
+                    <div><strong>{selectedRelease?.id === release.id ? 'Release Label:' : 'Search-Result Label:'}</strong> {release.label ?? 'Unknown'}</div>
                     <div><strong>Country:</strong> {release.country ?? 'Unknown'}</div>
-                    <div><strong>Catalog number:</strong> {release.catalogNumber ?? 'Not listed'}</div>
+                    <div><strong>Catalog Number:</strong> {release.catalogNumber ?? 'Not listed'}</div>
                     {release.barcode ? <div><strong>Barcode:</strong> {release.barcode}</div> : null}
                     <div><strong>Format:</strong> {release.format || 'Unknown'}</div>
                     {selectedRelease?.id === release.id && releaseContext?.genre ? <div><strong>Genre:</strong> {releaseContext.genre}</div> : null}
@@ -1416,16 +1416,16 @@ function App() {
                     <>
                       {releaseCatalogInfoStatus ? <p className="hint">{releaseCatalogInfoStatus}</p> : null}
                       <div className="price-suggestions" aria-live="polite">
-                        <strong>eBay active listings:</strong>
+                        <strong>eBay Active Listings:</strong>
                         {ebayListingStatus ? <div>{ebayListingStatus}</div> : null}
                         {ebayListingStats?.sampledListingCount ? (
                           <div className={`ebay-listing-results ${ebayListingStats.searchMethod}`}>
-                            <div><strong>Matching listings:</strong> {ebayListingStats.listingCount}</div>
-                            <div className={`ebay-search-method ${ebayListingStats.searchMethod}`}><strong>Search used:</strong>{' '}
+                            <div><strong>Matching Listings:</strong> {ebayListingStats.listingCount}</div>
+                            <div className={`ebay-search-method ${ebayListingStats.searchMethod}`}><strong>Search Used:</strong>{' '}
                               {ebayListingStats.searchMethod === 'catalogNumber' ? 'Discogs catalog number' : 'artist and album title'}
                             </div>
-                            <div><strong>Priced sample:</strong> {ebayListingStats.sampledListingCount} active listings</div>
-                            <div><strong>Low / average / high:</strong>{' '}
+                            <div><strong>Priced Sample:</strong> {ebayListingStats.sampledListingCount} active listings</div>
+                            <div><strong>Low / Average / High:</strong>{' '}
                               {ebayListingStats.currency || '$'} {ebayListingStats.lowestPrice?.toFixed(2)} /{' '}
                               {ebayListingStats.averagePrice?.toFixed(2)} / {ebayListingStats.highestPrice?.toFixed(2)}
                             </div>
@@ -1492,7 +1492,7 @@ function App() {
               <strong>{selectedRelease.artist} — {selectedRelease.title}</strong>
               <div>{selectedRelease.format || 'Format unknown'}{selectedRelease.year ? ` • ${selectedRelease.year}` : ''}</div>
               <div><strong>Label:</strong> {selectedRelease.label || 'Not listed'}</div>
-              <div><strong>Catalog number:</strong> {selectedRelease.catalogNumber || 'Not listed'}</div>
+              <div><strong>Catalog Number:</strong> {selectedRelease.catalogNumber || 'Not listed'}</div>
               {selectedRelease.barcode ? <div><strong>Barcode:</strong> {selectedRelease.barcode}</div> : null}
               {releaseContext?.genre ? <div><strong>Genre:</strong> {releaseContext.genre}</div> : null}
               {releaseContext?.style ? <div><strong>Style:</strong> {releaseContext.style}</div> : null}
@@ -1507,13 +1507,13 @@ function App() {
           <label>Notes</label>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Condition, purchase details, etc." />
 
-          <label>Media condition</label>
+          <label>Media Condition</label>
           <select value={mediaCondition} onChange={(e) => setMediaCondition(e.target.value)}>
             <option value="">Not specified</option>
             {MEDIA_CONDITIONS.map((condition) => <option key={condition} value={condition}>{condition}</option>)}
           </select>
 
-          <label>Estimated value</label>
+          <label>Estimated Value</label>
           <input
             type="number"
             min="0"
@@ -1561,7 +1561,7 @@ function App() {
               setCollectionSearch(event.target.value);
               setCollectionPage(1);
             }}
-            placeholder="Search artist, album, catalog #, or barcode"
+              placeholder="Search Artist, Album, Catalog #, or Barcode"
             aria-label="Search collection"
           />
           <span>{collectionTotal ? `Showing ${collectionStart}–${collectionEnd} of ${collectionTotal}` : 'No CDs found'}</span>
@@ -1619,18 +1619,18 @@ function App() {
             <div className="detail-grid">
               <div><strong>Label:</strong> {viewedEntry.label || 'Not listed'}</div>
               <div><strong>Country:</strong> {viewedEntry.country || 'Not listed'}</div>
-              <div><strong>Catalog number:</strong> {viewedEntry.catalogNumber || 'Not listed'}</div>
+              <div><strong>Catalog Number:</strong> {viewedEntry.catalogNumber || 'Not listed'}</div>
               {viewedEntry.barcode ? <div><strong>Barcode:</strong> {viewedEntry.barcode}</div> : null}
               {viewedEntry.genre ? <div><strong>Genre:</strong> {viewedEntry.genre}</div> : null}
               {viewedEntry.style ? <div><strong>Style:</strong> {viewedEntry.style}</div> : null}
-              <div><strong>Media condition:</strong> {viewedEntry.mediaCondition || 'Not specified'}</div>
-              <div><strong>Estimated value:</strong> {viewedEntry.estimatedValue != null ? `$${viewedEntry.estimatedValue.toFixed(2)}` : 'Not set'}</div>
+              <div><strong>Media Condition:</strong> {viewedEntry.mediaCondition || 'Not specified'}</div>
+              <div><strong>Estimated Value:</strong> {viewedEntry.estimatedValue != null ? `$${viewedEntry.estimatedValue.toFixed(2)}` : 'Not set'}</div>
             </div>
             <div className="detail-section discogs-market-stats">
-              <strong>Discogs market statistics</strong>
+              <strong>Discogs Market Statistics</strong>
               {viewedEntry.discogsMarketStatsCheckedAt ? <>
                 <div className="detail-grid">
-                  <div><strong>Last sold:</strong> {formatDiscogsMarketDate(viewedEntry.discogsLastSoldAt)}</div>
+                  <div><strong>Last Sold:</strong> {formatDiscogsMarketDate(viewedEntry.discogsLastSoldAt)}</div>
                   <div><strong>Low:</strong> {formatDiscogsMarketPrice(viewedEntry.discogsMarketLow, viewedEntry.discogsMarketCurrency)}</div>
                   <div><strong>Median:</strong> {formatDiscogsMarketPrice(viewedEntry.discogsMarketMedian, viewedEntry.discogsMarketCurrency)}</div>
                   <div><strong>High:</strong> {formatDiscogsMarketPrice(viewedEntry.discogsMarketHigh, viewedEntry.discogsMarketCurrency)}</div>
@@ -1639,30 +1639,30 @@ function App() {
               </> : <p className="hint">No recent sale detail found.</p>}
             </div>
             {editingCatalogDetails && catalogDetailsForm ? <form className="detail-section catalog-details-editor" onSubmit={saveCatalogDetails}>
-              <strong>Edit catalog details</strong>
+              <strong>Edit Catalog Details</strong>
               <div className="catalog-details-fields">
                 <label>Artist<input value={catalogDetailsForm.artist} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, artist: event.target.value })} /></label>
-                <label>Album title<input value={catalogDetailsForm.title} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, title: event.target.value })} /></label>
+                <label>Album Title<input value={catalogDetailsForm.title} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, title: event.target.value })} /></label>
                 <label>Year<input type="number" min="1000" max="9999" value={catalogDetailsForm.year} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, year: event.target.value })} /></label>
                 <label>Country<input value={catalogDetailsForm.country} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, country: event.target.value })} /></label>
                 <label>Label<input value={catalogDetailsForm.label} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, label: event.target.value })} /></label>
                 <label>Format<input value={catalogDetailsForm.format} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, format: event.target.value })} /></label>
-                <label>Catalog number<input value={catalogDetailsForm.catalogNumber} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, catalogNumber: event.target.value })} /></label>
+                <label>Catalog Number<input value={catalogDetailsForm.catalogNumber} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, catalogNumber: event.target.value })} /></label>
                 <label>Barcode<input value={catalogDetailsForm.barcode} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, barcode: event.target.value })} /></label>
-                <label>Media condition<select value={catalogDetailsForm.mediaCondition} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, mediaCondition: event.target.value })}><option value="">Not specified</option>{MEDIA_CONDITIONS.map((condition) => <option key={condition} value={condition}>{condition}</option>)}</select></label>
+                <label>Media Condition<select value={catalogDetailsForm.mediaCondition} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, mediaCondition: event.target.value })}><option value="">Not specified</option>{MEDIA_CONDITIONS.map((condition) => <option key={condition} value={condition}>{condition}</option>)}</select></label>
               </div>
               <label>Notes<textarea value={catalogDetailsForm.notes} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, notes: event.target.value })} /></label>
               <div className="form-actions"><button type="submit" disabled={Boolean(catalogSaveAction)}>Save Details</button><button type="button" className="secondary-button" disabled={Boolean(catalogSaveAction)} onClick={() => { setEditingCatalogDetails(false); setCatalogDetailsForm(null); setCatalogDetailsStatus(''); }}>Cancel</button></div>
               {catalogDetailsStatus ? <p className="hint">{catalogDetailsStatus}</p> : null}
             </form> : null}
             {editingEstimatedValue ? <div className="detail-section estimated-value-editor"><strong>Update estimated value</strong><div className="inline-form"><input type="number" min="0" step="0.01" disabled={Boolean(catalogSaveAction)} value={estimatedValueInput} onChange={(event) => setEstimatedValueInput(event.target.value)} placeholder="Leave blank to clear" aria-label="Estimated value" /><button type="button" disabled={Boolean(catalogSaveAction)} onClick={() => void saveEstimatedValue()}>Save Value</button><button type="button" className="secondary-button" disabled={Boolean(catalogSaveAction)} onClick={() => { setEditingEstimatedValue(false); setEstimatedValueStatus(''); }}>Cancel</button></div>{estimatedValueStatus ? <p className="hint">{estimatedValueStatus}</p> : null}</div> : null}
-            {viewedEntry.notes ? <div className="detail-section"><strong>Your notes</strong><p>{viewedEntry.notes}</p></div> : null}
+            {viewedEntry.notes ? <div className="detail-section"><strong>Your Notes</strong><p>{viewedEntry.notes}</p></div> : null}
             {detailContext?.artistProfile && detailContext.descriptionSource !== 'artist' ? <div className="detail-section"><strong>Artist summary</strong><p className="artist-summary-preview"><span className="artist-summary-desktop">{formatDiscogsText(detailContext.artistProfile)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(detailContext.artistProfile))}</span></p><button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(detailContext.artistProfile!))}>Show All</button></div> : null}
             {detailContext ? <div className="detail-section"><strong>{detailContext.descriptionSource === 'release' ? 'Release notes' : detailContext.descriptionSource === 'album' ? 'Album notes' : 'Artist summary'}</strong><p className={detailContext.descriptionSource === 'artist' ? 'artist-summary-preview' : undefined}>{detailContext.description ? <>{detailContext.descriptionSource === 'artist' ? <><span className="artist-summary-desktop">{formatDiscogsText(detailContext.description)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(detailContext.description))}</span></> : formatDiscogsText(detailContext.description)}</> : 'No additional Discogs notes are available.'}</p>{detailContext.descriptionSource === 'artist' && detailContext.description ? <button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(detailContext.description!))}>Show All</button> : null}</div> : null}
             {detailEbayStats?.sampledListingCount ? <div className={`detail-section ebay-listing-results ${detailEbayStats.searchMethod}`}><strong>eBay active listings</strong><p>{detailEbayStats.listingCount} listings found • {detailEbayStats.searchMethod === 'catalogNumber' ? 'catalog number match' : 'artist/title CD search'} • Low / average / high: {detailEbayStats.currency || '$'} {detailEbayStats.lowestPrice?.toFixed(2)} / {detailEbayStats.averagePrice?.toFixed(2)} / {detailEbayStats.highestPrice?.toFixed(2)}</p></div> : null}
             {showDetailImages ? (
               <div className="detail-section release-image-gallery">
-                <strong>Release images</strong>
+                <strong>Release Images</strong>
                 {detailImagesStatus ? <p>{detailImagesStatus}</p> : null}
                 {detailImages.length ? <div className="release-image-grid">
                   {detailImages.map((image, index) => (
