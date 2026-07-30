@@ -1432,7 +1432,7 @@ function App() {
                   {selectedRelease?.id === release.id && (
                     <>
                       {releaseCatalogInfoStatus ? <p className="hint">{releaseCatalogInfoStatus}</p> : null}
-                      <div className="price-suggestions" aria-live="polite">
+                      {includeEbayAuctionValues && <div className="price-suggestions" aria-live="polite">
                         <strong>eBay Active Listings:</strong>
                         {ebayListingStatus ? <div>{ebayListingStatus}</div> : null}
                         {ebayListingStats?.sampledListingCount ? (
@@ -1449,7 +1449,7 @@ function App() {
                           </div>
                         ) : null}
                         {ebayListingStats ? <div className="price-note">Current asking prices only; not eBay sold-price history.</div> : null}
-                      </div>
+                      </div>}
                       <div className="release-context-card" aria-live="polite">
                         {releaseContextStatus ? <p>{releaseContextStatus}</p> : null}
                         {releaseContext && releaseContext.descriptionSource !== 'artist' && (

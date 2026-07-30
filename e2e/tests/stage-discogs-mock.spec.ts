@@ -113,6 +113,6 @@ test.describe('Stage Discogs Mock', () => {
     await page.getByText('Mocked CD Album', { exact: true }).click();
     await expect(page.locator('.result-card.selected')).toContainText('Mock Records');
     expect(ebayRequests).toBe(0);
-    await expect(page.getByText('eBay Active Listings', { exact: true })).toBeHidden();
+    await expect(page.locator('.price-suggestions')).toHaveCount(0);
   });
 });
