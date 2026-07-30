@@ -184,6 +184,45 @@ app.post('/api/music-library/scan', async (_req, res) => {
   res.status(202).json({ scan: libraryScanState });
 });
 
+app.get('/api/music-library/folders/artists', async (_req, res) => {
+  const library = await getMusicLibrary();
+  if (!library) {
+    res.status(404).json({ error: 'Choose and scan a music library folder first.' });
+    return;
+  }
+  const tracks = await prisma.musicLibraryTrack.findMany({ where: { libraryId: library.id }, select: { filePath: true, artist: true } });
+  const folders = new Map<string, { folderPath: string; name: string; trackCount: number }>();
+  for (const track of tracks) {
+    const folderPath = path.dirname(path.dirname(track.filePath));
+    if (folderPath !== path.resolve(library.rootPath) && !pathIsWithinRoot(library.rootPath, folderPath)) continue;
+    const current = folders.get(folderPath);
+    folders.set(folderPath, { folderPath, name: path.basename(folderPath) || track.artist, trackCount: (current?.trackCount ?? 0) + 1 });
+  }
+  res.json({ folders: [...folders.values()].sort((left, right) => left.name.localeCompare(right.name) || left.folderPath.localeCompare(right.folderPath)) });
+});
+
+app.get('/api/music-library/folders/albums', async (req, res) => {
+  const artistFolderPath = String(req.query.artistFolderPath || '').trim();
+  const library = await getMusicLibrary();
+  if (!library || !artistFolderPath) {
+    res.status(400).json({ error: 'Choose an indexed artist folder first.' });
+    return;
+  }
+  const resolvedArtistFolder = path.resolve(artistFolderPath);
+  if (resolvedArtistFolder !== path.resolve(library.rootPath) && !pathIsWithinRoot(library.rootPath, resolvedArtistFolder)) {
+    res.status(400).json({ error: 'Choose an artist folder inside the configured music library.' });
+    return;
+  }
+  const tracks = await prisma.musicLibraryTrack.findMany({ where: { libraryId: library.id, filePath: { startsWith: `${resolvedArtistFolder}${path.sep}` } }, select: { filePath: true, album: true } });
+  const folders = new Map<string, { folderPath: string; name: string; album: string; trackCount: number }>();
+  for (const track of tracks) {
+    const folderPath = path.dirname(track.filePath);
+    const current = folders.get(folderPath);
+    folders.set(folderPath, { folderPath, name: path.basename(folderPath), album: track.album, trackCount: (current?.trackCount ?? 0) + 1 });
+  }
+  res.json({ folders: [...folders.values()].sort((left, right) => left.album.localeCompare(right.album) || left.name.localeCompare(right.name)) });
+});
+
 app.get('/api/music-library/matches/find', async (req, res) => {
   const cdEntryId = Number(req.query.cdEntryId);
   const trackKey = String(req.query.trackKey || '').trim();
