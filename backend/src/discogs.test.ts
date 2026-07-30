@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cleanDiscogsText, getDiscogsPriceSuggestion, getDiscogsReleaseCatalogInfo, normalizeDiscogsResult, searchDiscogsReleases, stripDiscogsArtistDisambiguator } from './discogs';
 
-test('normalizeDiscogsResult builds a clean release summary', () => {
+test('normalizeDiscogsResult Builds a Clean Release Summary', () => {
   const result = normalizeDiscogsResult({
     id: 123,
     title: 'Artist - Album',
@@ -32,7 +32,7 @@ test('normalizeDiscogsResult builds a clean release summary', () => {
   assert.equal(result.lowestPrice, 12.99);
 });
 
-test('searchDiscogsReleases returns an empty list when the request times out', async () => {
+test('searchDiscogsReleases Returns an Empty List When the Request Times Out', async () => {
   const results = await searchDiscogsReleases('Pink Floyd', undefined, async () => {
     throw new Error('timeout');
   });
@@ -40,7 +40,7 @@ test('searchDiscogsReleases returns an empty list when the request times out', a
   assert.deepEqual(results, []);
 });
 
-test('searchDiscogsReleases limits database searches to CDs', async () => {
+test('searchDiscogsReleases Limits Database Searches to CDs', async () => {
   let requestParams: Record<string, unknown> | undefined;
 
   await searchDiscogsReleases('The Cure Disintegration', undefined, async (_url, config) => {
@@ -53,7 +53,7 @@ test('searchDiscogsReleases limits database searches to CDs', async () => {
   assert.equal(requestParams?.per_page, 100);
 });
 
-test('searchDiscogsReleases passes artist and album title as dedicated filters', async () => {
+test('searchDiscogsReleases Passes Artist and Album Title as Dedicated Filters', async () => {
   let requestParams: Record<string, unknown> | undefined;
 
   await searchDiscogsReleases('', undefined, async (_url, config) => {
@@ -66,7 +66,7 @@ test('searchDiscogsReleases passes artist and album title as dedicated filters',
   assert.equal(requestParams?.q, undefined);
 });
 
-test('searchDiscogsReleases passes catalog number and barcode filters', async () => {
+test('searchDiscogsReleases Passes Catalog Number and Barcode Filters', async () => {
   let requestParams: Record<string, unknown> | undefined;
 
   await searchDiscogsReleases('', undefined, async (_url, config) => {
@@ -78,7 +78,7 @@ test('searchDiscogsReleases passes catalog number and barcode filters', async ()
   assert.equal(requestParams?.barcode, '039841541724');
 });
 
-test('getDiscogsPriceSuggestion returns the selected condition value', async () => {
+test('getDiscogsPriceSuggestion Returns the Selected Condition Value', async () => {
   const suggestion = await getDiscogsPriceSuggestion(123, 'Very Good Plus (VG+)', undefined, async () => (
     { data: { 'Very Good Plus (VG+)': { value: 24.5, currency: 'USD' } } } as never
   ));
@@ -86,7 +86,7 @@ test('getDiscogsPriceSuggestion returns the selected condition value', async () 
   assert.deepEqual(suggestion, { value: 24.5, currency: 'USD' });
 });
 
-test('normalizeDiscogsResult derives the artist from a database-search title', () => {
+test('normalizeDiscogsResult Derives the Artist From a Database-Search Title', () => {
   const result = normalizeDiscogsResult({
     id: 789,
     title: 'The Cure - Disintegration',
@@ -96,7 +96,7 @@ test('normalizeDiscogsResult derives the artist from a database-search title', (
   assert.equal(result.title, 'Disintegration');
 });
 
-test('normalizeDiscogsResult removes Discogs artist disambiguator suffixes', () => {
+test('normalizeDiscogsResult Removes Discogs Artist Disambiguator Suffixes', () => {
   const result = normalizeDiscogsResult({
     id: 790,
     title: 'Obsession (6) - Scarred For Life',
@@ -106,12 +106,12 @@ test('normalizeDiscogsResult removes Discogs artist disambiguator suffixes', () 
   assert.equal(stripDiscogsArtistDisambiguator('Iron Maiden (2)'), 'Iron Maiden');
 });
 
-test('cleanDiscogsText keeps Latin letters and numbers while removing non-language noise', () => {
+test('cleanDiscogsText Keeps Latin Letters and Numbers While Removing Non-Language Noise', () => {
   assert.equal(cleanDiscogsText('Beyonc\u00e9 \u2014 R\u00e9sum\u00e9 2 \ud83c\udfb5 \u65e5\u672c\u8a9e'), 'Beyonc\u00e9 - R\u00e9sum\u00e9 2');
   assert.equal(stripDiscogsArtistDisambiguator('Iron Maiden (2) \u65e5\u672c\u8a9e'), 'Iron Maiden');
 });
 
-test('getDiscogsReleaseCatalogInfo uses release labels and excludes companies', async () => {
+test('getDiscogsReleaseCatalogInfo Uses Release Labels and Excludes Companies', async () => {
   const info = await getDiscogsReleaseCatalogInfo(123, undefined, async () => ({
     data: {
       labels: [
@@ -134,7 +134,7 @@ test('getDiscogsReleaseCatalogInfo uses release labels and excludes companies', 
   });
 });
 
-test('normalizeDiscogsResult handles non-string label and country values', () => {
+test('normalizeDiscogsResult Handles Non-String Label and Country Values', () => {
   const result = normalizeDiscogsResult({
     id: 456,
     title: 'Artist - Album',

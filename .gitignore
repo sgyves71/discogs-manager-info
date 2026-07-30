@@ -11,3 +11,9 @@ frontend/certs/
 *.tsbuildinfo
 frontend/vite.config.js
 frontend/vite.config.d.ts
+e2e/playwright-report/
+e2e/test-results/
+e2e/debug.log
+backend/.env.stage
+backend/prisma/stage.db
+backend/prisma/stage.db-journal
