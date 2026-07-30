@@ -330,6 +330,40 @@ app.patch('/api/cds/:id/personal-album-folder', async (req, res) => {
   }
 });
 
+app.post('/api/cds/:id/personal-album-folder/validate', async (req, res) => {
+  const entryId = Number(req.params.id);
+  const folderPath = typeof req.body?.folderPath === 'string' ? req.body.folderPath.trim() : '';
+  if (!Number.isInteger(entryId) || entryId <= 0 || !folderPath) {
+    res.status(400).json({ error: 'Choose an album folder to validate.' });
+    return;
+  }
+  const [library, entry] = await Promise.all([getMusicLibrary(), prisma.cdEntry.findUnique({ where: { id: entryId } })]);
+  if (!library || !entry?.discogsId || !discogsToken) {
+    res.status(400).json({ error: 'A scanned music library and Discogs release are required for validation.' });
+    return;
+  }
+  const resolvedFolderPath = path.resolve(folderPath);
+  if (!pathIsWithinRoot(library.rootPath, resolvedFolderPath)) {
+    res.status(400).json({ error: 'Choose an album folder inside the configured music library.' });
+    return;
+  }
+  const indexedTracks = await prisma.musicLibraryTrack.findMany({ where: { libraryId: library.id, filePath: { startsWith: `${resolvedFolderPath}${path.sep}` } }, select: { id: true, title: true } });
+  try {
+    const releaseTracks = await getDiscogsReleaseTracklist(entry.discogsId, discogsToken);
+    const remaining = [...indexedTracks];
+    const matched = releaseTracks.every((releaseTrack) => {
+      const bestIndex = remaining.reduce((best, candidate, index) => scoreMusicTitleMatch(releaseTrack.title, candidate.title) >= 0.75 && (best < 0 || scoreMusicTitleMatch(releaseTrack.title, candidate.title) > scoreMusicTitleMatch(releaseTrack.title, remaining[best].title)) ? index : best, -1);
+      if (bestIndex < 0) return false;
+      remaining.splice(bestIndex, 1);
+      return true;
+    });
+    res.json({ valid: matched && releaseTracks.length === indexedTracks.length, releaseTrackCount: releaseTracks.length, folderTrackCount: indexedTracks.length });
+  } catch (error) {
+    console.error('Personal album folder validation failed:', error);
+    res.status(502).json({ error: 'Unable to validate this album folder against Discogs right now.' });
+  }
+});
+
 app.get('/api/cds/:id/personal-track-matches', async (req, res) => {
   const cdEntryId = Number(req.params.id);
   if (!Number.isInteger(cdEntryId) || cdEntryId <= 0) {

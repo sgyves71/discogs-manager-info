@@ -101,7 +101,6 @@ type PersonalTrackMatch = {
 
 type LocalAudioPlayer = { trackId: number; title: string; subtitle: string };
 
-type PersonalAlbumFolder = { folderPath: string; album: string; trackCount: number; matchType: 'exact' | 'close' };
 type PersonalArtistFolder = { folderPath: string; name: string; trackCount: number };
 type PersonalBrowsableAlbumFolder = { folderPath: string; name: string; album: string; trackCount: number };
 
@@ -207,11 +206,12 @@ function App() {
   const [personalTrackMatches, setPersonalTrackMatches] = useState<PersonalTrackMatch[]>([]);
   const [personalMusicStatus, setPersonalMusicStatus] = useState('');
   const [localAudioPlayer, setLocalAudioPlayer] = useState<LocalAudioPlayer | null>(null);
-  const [personalAlbumFolders, setPersonalAlbumFolders] = useState<PersonalAlbumFolder[] | null>(null);
   const [personalArtistFolders, setPersonalArtistFolders] = useState<PersonalArtistFolder[] | null>(null);
   const [personalBrowsableAlbumFolders, setPersonalBrowsableAlbumFolders] = useState<PersonalBrowsableAlbumFolder[] | null>(null);
-  const [personalFolderSearch, setPersonalFolderSearch] = useState('');
   const [showPersonalFolderMapping, setShowPersonalFolderMapping] = useState(false);
+  const [selectedPersonalArtistFolderPath, setSelectedPersonalArtistFolderPath] = useState('');
+  const [selectedPersonalAlbumFolderPath, setSelectedPersonalAlbumFolderPath] = useState('');
+  const [personalAlbumValidation, setPersonalAlbumValidation] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
   const [personalTrackNotFoundPrompt, setPersonalTrackNotFoundPrompt] = useState<DiscogsReleaseTrack | null>(null);
   const [personalAlbumMappingStatus, setPersonalAlbumMappingStatus] = useState('');
   const [musicLibrary, setMusicLibrary] = useState<MusicLibraryInfo | null>(null);
@@ -229,7 +229,6 @@ function App() {
   const [status, setStatus] = useState('');
   const addCardRef = useRef<HTMLDivElement>(null);
   const selectedReleasePanelRef = useRef<HTMLElement>(null);
-  const personalAlbumMappingRef = useRef<HTMLDivElement>(null);
 
   function openSelectedReleaseEditor() {
     selectedReleasePanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -367,12 +366,13 @@ function App() {
       setYouTubePlayer(null);
       setPersonalTrackMatches([]);
       setPersonalMusicStatus('');
-      setPersonalAlbumFolders(null);
       setPersonalArtistFolders(null);
       setPersonalBrowsableAlbumFolders(null);
-      setPersonalFolderSearch('');
       setShowPersonalFolderMapping(false);
       setPersonalTrackNotFoundPrompt(null);
+      setSelectedPersonalArtistFolderPath('');
+      setSelectedPersonalAlbumFolderPath('');
+      setPersonalAlbumValidation('idle');
       setPersonalAlbumMappingStatus('');
       return;
     }
@@ -393,12 +393,13 @@ function App() {
     setShowDetailImages(false);
     setDetailTracks([]);
     setDetailTracksStatus('');
-    setPersonalAlbumFolders(null);
     setPersonalArtistFolders(null);
     setPersonalBrowsableAlbumFolders(null);
-    setPersonalFolderSearch('');
     setShowPersonalFolderMapping(false);
     setPersonalTrackNotFoundPrompt(null);
+    setSelectedPersonalArtistFolderPath('');
+    setSelectedPersonalAlbumFolderPath('');
+    setPersonalAlbumValidation('idle');
     setPersonalAlbumMappingStatus('');
     setShowTracklist(false);
     setYouTubeStatus('');
@@ -407,7 +408,6 @@ function App() {
     setYouTubePlayer(null);
     setPersonalTrackMatches([]);
     setPersonalMusicStatus('');
-    setPersonalAlbumFolders(null);
 
     const lookups: Promise<void>[] = [];
     if (viewedEntry.artistSummary || viewedEntry.discogsNotes) {
@@ -939,7 +939,7 @@ function App() {
     setLocalAudioPlayer({ trackId: match.libraryTrack.id, title: match.libraryTrack.title, subtitle: `${match.libraryTrack.artist} — ${match.libraryTrack.album}` });
   }
 
-  async function findPersonalAlbumFolder() {
+  /* async function findPersonalAlbumFolder() {
     if (!viewedEntry) return;
     setPersonalMusicStatus(`Looking for the local album folder for “${viewedEntry.title}”...`);
     setPersonalAlbumFolders(null);
@@ -958,7 +958,7 @@ function App() {
     } catch (error) {
       setPersonalMusicStatus(error instanceof Error ? error.message : 'Unable to search the personal music library.');
     }
-  }
+  } */
 
   async function savePersonalAlbumFolder(folderPath: string | null) {
     if (!viewedEntry) return;
@@ -973,7 +973,6 @@ function App() {
       setItems((current) => current.map((item) => item.id === updated.id ? { ...item, personalAlbumFolderPath: updated.personalAlbumFolderPath, personalAlbumFolderMappedAt: updated.personalAlbumFolderMappedAt } : item));
       if (updated.personalAlbumFolderPath) {
         setPersonalMusicStatus('Personal album folder saved. Try the track again.');
-        setPersonalAlbumFolders(null);
         setPersonalArtistFolders(null);
         setPersonalBrowsableAlbumFolders(null);
         setShowPersonalFolderMapping(false);
@@ -989,8 +988,10 @@ function App() {
     if (!personalTrackNotFoundPrompt) return;
     setPersonalTrackNotFoundPrompt(null);
     setShowPersonalFolderMapping(true);
-    void findPersonalAlbumFolder();
-    window.setTimeout(() => personalAlbumMappingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
+    setSelectedPersonalArtistFolderPath('');
+    setSelectedPersonalAlbumFolderPath('');
+    setPersonalAlbumValidation('idle');
+    void browsePersonalArtistFolders();
   }
 
   async function browsePersonalArtistFolders() {
@@ -1001,7 +1002,6 @@ function App() {
       const data = await response.json() as { folders?: PersonalArtistFolder[]; error?: string };
       if (!response.ok) throw new Error(data.error || 'Unable to load indexed artist folders.');
       setPersonalArtistFolders(data.folders ?? []);
-      setPersonalFolderSearch(viewedEntry?.artist || '');
       setPersonalAlbumMappingStatus('Choose the base artist folder, then choose the album folder.');
     } catch (error) {
       setPersonalAlbumMappingStatus(error instanceof Error ? error.message : 'Unable to load indexed artist folders.');
@@ -1010,6 +1010,9 @@ function App() {
 
   async function browsePersonalAlbumFolders(artistFolderPath: string) {
     setPersonalAlbumMappingStatus('Loading indexed album folders...');
+    setSelectedPersonalArtistFolderPath(artistFolderPath);
+    setSelectedPersonalAlbumFolderPath('');
+    setPersonalAlbumValidation('idle');
     try {
       const response = await fetch(`/api/music-library/folders/albums?${new URLSearchParams({ artistFolderPath })}`);
       const data = await response.json() as { folders?: PersonalBrowsableAlbumFolder[]; error?: string };
@@ -1018,6 +1021,28 @@ function App() {
       setPersonalAlbumMappingStatus('Choose the album folder that contains this release.');
     } catch (error) {
       setPersonalAlbumMappingStatus(error instanceof Error ? error.message : 'Unable to load indexed album folders.');
+    }
+  }
+
+  async function validatePersonalAlbumFolder(folderPath: string) {
+    if (!viewedEntry || !folderPath) return;
+    setSelectedPersonalAlbumFolderPath(folderPath);
+    setPersonalAlbumValidation('checking');
+    setPersonalAlbumMappingStatus('Checking every indexed track against the Discogs release...');
+    try {
+      const response = await fetch(`/api/cds/${viewedEntry.id}/personal-album-folder/validate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folderPath }) });
+      const data = await response.json() as { valid?: boolean; error?: string };
+      if (!response.ok) throw new Error(data.error || 'Unable to validate the album folder.');
+      if (data.valid) {
+        setPersonalAlbumValidation('valid');
+        setPersonalAlbumMappingStatus('All tracks matched one-to-one. You can save this folder.');
+      } else {
+        setPersonalAlbumValidation('invalid');
+        setPersonalAlbumMappingStatus('Cannot make one-to-one track associations for this folder.');
+      }
+    } catch (error) {
+      setPersonalAlbumValidation('invalid');
+      setPersonalAlbumMappingStatus(error instanceof Error ? error.message : 'Unable to validate the album folder.');
     }
   }
 
@@ -1481,18 +1506,8 @@ function App() {
             </form> : null}
             {editingEstimatedValue ? <div className="detail-section estimated-value-editor"><strong>Update estimated value</strong><div className="inline-form"><input type="number" min="0" step="0.01" value={estimatedValueInput} onChange={(event) => setEstimatedValueInput(event.target.value)} placeholder="Leave blank to clear" aria-label="Estimated value" /><button type="button" onClick={() => void saveEstimatedValue()}>Save value</button><button type="button" className="secondary-button" onClick={() => { setEditingEstimatedValue(false); setEstimatedValueStatus(''); }}>Cancel</button></div>{estimatedValueStatus ? <p className="hint">{estimatedValueStatus}</p> : null}</div> : null}
             {viewedEntry.notes ? <div className="detail-section"><strong>Your notes</strong><p>{viewedEntry.notes}</p></div> : null}
-            {showPersonalFolderMapping ? <div className="detail-section personal-album-mapping" ref={personalAlbumMappingRef}>
-              <strong>Personal album folder</strong>
-              <p>{viewedEntry.personalAlbumFolderPath ? 'Saved folder is preferred for local track playback.' : 'Optional fallback when automatic local matching cannot identify the correct album.'}</p>
-              {viewedEntry.personalAlbumFolderPath ? <code>{viewedEntry.personalAlbumFolderPath}</code> : null}
-              <div className="form-actions"><button type="button" onClick={() => void browsePersonalArtistFolders()}>Browse library folders</button>{viewedEntry.personalAlbumFolderPath ? <button type="button" className="secondary-button" onClick={() => void savePersonalAlbumFolder(null)}>Clear mapping</button> : null}</div>
-              {personalAlbumMappingStatus ? <p className="hint">{personalAlbumMappingStatus}</p> : null}
-              {personalArtistFolders ? <div className="album-folder-results"><label>Find artist folder<input value={personalFolderSearch} onChange={(event) => setPersonalFolderSearch(event.target.value)} placeholder="Artist or folder name" /></label>{personalArtistFolders.filter((folder) => `${folder.name} ${folder.folderPath}`.toLocaleLowerCase().includes(personalFolderSearch.trim().toLocaleLowerCase())).slice(0, 80).map((folder) => <div className="album-folder-result" key={folder.folderPath}><strong>{folder.name}</strong><span>{folder.trackCount} indexed tracks</span><button type="button" className="secondary-button" onClick={() => void browsePersonalAlbumFolders(folder.folderPath)}>Choose artist folder</button></div>)}</div> : null}
-              {personalBrowsableAlbumFolders ? <div className="album-folder-results"><strong>Album folders</strong>{personalBrowsableAlbumFolders.map((folder) => <div className="album-folder-result" key={folder.folderPath}><strong>{folder.album || folder.name}</strong><span>{folder.trackCount} indexed tracks</span><code>{folder.name}</code><button type="button" onClick={() => void savePersonalAlbumFolder(folder.folderPath)}>Use this folder</button></div>)}</div> : null}
-            </div> : null}
             {detailContext?.artistProfile && detailContext.descriptionSource !== 'artist' ? <div className="detail-section"><strong>Artist summary</strong><p className="artist-summary-preview"><span className="artist-summary-desktop">{formatDiscogsText(detailContext.artistProfile)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(detailContext.artistProfile))}</span></p><button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(detailContext.artistProfile!))}>Show all</button></div> : null}
             {detailContext ? <div className="detail-section"><strong>{detailContext.descriptionSource === 'release' ? 'Release notes' : detailContext.descriptionSource === 'album' ? 'Album notes' : 'Artist summary'}</strong><p className={detailContext.descriptionSource === 'artist' ? 'artist-summary-preview' : undefined}>{detailContext.description ? <>{detailContext.descriptionSource === 'artist' ? <><span className="artist-summary-desktop">{formatDiscogsText(detailContext.description)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(detailContext.description))}</span></> : formatDiscogsText(detailContext.description)}</> : 'No additional Discogs notes are available.'}</p>{detailContext.descriptionSource === 'artist' && detailContext.description ? <button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(detailContext.description!))}>Show all</button> : null}</div> : null}
-            {showPersonalFolderMapping && personalAlbumFolders ? <div className="detail-section album-folder-results"><div className="album-folder-results-header"><strong>Personal album folder{personalAlbumFolders.length === 1 ? '' : 's'}</strong><button type="button" className="secondary-button" onClick={() => setPersonalAlbumFolders(null)}>Close</button></div>{personalAlbumFolders.map((folder) => <div className="album-folder-result" key={folder.folderPath}><strong>{folder.album}</strong><span>{folder.trackCount} indexed tracks · {folder.matchType === 'exact' ? 'exact album match' : 'close album match'}</span><code>{folder.folderPath}</code><div className="form-actions"><button type="button" onClick={() => void savePersonalAlbumFolder(folder.folderPath)}>Use this folder</button></div></div>)}</div> : null}
             {detailEbayStats?.sampledListingCount ? <div className={`detail-section ebay-listing-results ${detailEbayStats.searchMethod}`}><strong>eBay active listings</strong><p>{detailEbayStats.listingCount} listings found • {detailEbayStats.searchMethod === 'catalogNumber' ? 'catalog number match' : 'artist/title CD search'} • Low / average / high: {detailEbayStats.currency || '$'} {detailEbayStats.lowestPrice?.toFixed(2)} / {detailEbayStats.averagePrice?.toFixed(2)} / {detailEbayStats.highestPrice?.toFixed(2)}</p></div> : null}
             {showDetailImages ? (
               <div className="detail-section release-image-gallery">
@@ -1654,6 +1669,7 @@ function App() {
       {localAudioPlayer ? <LocalAudioPlayer {...localAudioPlayer} onClose={() => setLocalAudioPlayer(null)} onError={() => setPersonalMusicStatus('This local file could not be played. It may have been moved or renamed since the last scan; open Music Library and scan again.')} /> : null}
       {expandedArtistSummary ? <ArtistSummaryDialog summary={expandedArtistSummary} onClose={() => setExpandedArtistSummary(null)} /> : null}
       {personalTrackNotFoundPrompt ? <div className="artist-summary-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPersonalTrackNotFoundPrompt(null); }}><section className="artist-summary-dialog" role="dialog" aria-modal="true" aria-label="Personal music match not found"><div className="artist-summary-dialog-header"><h2>No personal match found</h2><button type="button" className="secondary-button" onClick={() => setPersonalTrackNotFoundPrompt(null)}>No</button></div><p>No tagged local match was found for <strong>{personalTrackNotFoundPrompt.title}</strong>. If you believe the track is in your scanned music collection, you can make a manual album-folder match.</p><div className="form-actions"><button type="button" onClick={beginManualPersonalAlbumMatch}>Yes, make manual match</button><button type="button" className="secondary-button" onClick={() => setPersonalTrackNotFoundPrompt(null)}>No, not now</button></div></section></div> : null}
+      {showPersonalFolderMapping ? <div className="artist-summary-overlay" role="presentation"><section className="artist-summary-dialog" role="dialog" aria-modal="true" aria-label="Manual personal album match"><div className="artist-summary-dialog-header"><h2>Manual personal album match</h2><button type="button" className="secondary-button" onClick={() => setShowPersonalFolderMapping(false)}>Cancel</button></div>{personalAlbumValidation === 'invalid' ? <><p>Cannot make one-to-one track associations for this folder.</p><div className="form-actions"><button type="button" onClick={() => setShowPersonalFolderMapping(false)}>OK</button></div></> : <><p>Select the base artist folder and then the album folder. The app will validate every track before enabling Save.</p><label>Artist folder<select value={selectedPersonalArtistFolderPath} onChange={(event) => void browsePersonalAlbumFolders(event.target.value)} disabled={!personalArtistFolders}><option value="">{personalArtistFolders ? 'Choose artist folder' : 'Loading artist folders...'}</option>{personalArtistFolders?.map((folder) => <option key={folder.folderPath} value={folder.folderPath}>{folder.name} ({folder.trackCount} tracks)</option>)}</select></label><label>Album folder<select value={selectedPersonalAlbumFolderPath} onChange={(event) => void validatePersonalAlbumFolder(event.target.value)} disabled={!selectedPersonalArtistFolderPath || !personalBrowsableAlbumFolders || personalAlbumValidation === 'checking'}><option value="">{selectedPersonalArtistFolderPath ? 'Choose album folder' : 'Choose an artist first'}</option>{personalBrowsableAlbumFolders?.map((folder) => <option key={folder.folderPath} value={folder.folderPath}>{folder.album || folder.name} ({folder.trackCount} tracks)</option>)}</select></label>{personalAlbumMappingStatus ? <p className="hint">{personalAlbumMappingStatus}</p> : null}<div className="form-actions"><button type="button" disabled={personalAlbumValidation !== 'valid'} onClick={() => void savePersonalAlbumFolder(selectedPersonalAlbumFolderPath)}>Save mapping</button><button type="button" className="secondary-button" onClick={() => setShowPersonalFolderMapping(false)}>Cancel</button></div></>}</section></div> : null}
         </>
       )}
       </main>
