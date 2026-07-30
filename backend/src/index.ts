@@ -9,6 +9,7 @@ import { getEbayActiveListingStats, getEbaySoldListingStats } from './ebay.js';
 import { findYouTubeMatches } from './youtube.js';
 import { artistSearchFallbacks, contentTypeForAudioFile, isDirectory, normalizeMusicText, pathIsWithinRoot, readMusicFileMetadata, scoreMusicTextMatch, scoreMusicTitleMatch, walkAudioFiles } from './music-library.js';
 import { CatalogEnrichmentService } from './services/catalog-enrichment-service.js';
+import { getStageDiscogsCatalogInfo, getStageDiscogsContext, getStageDiscogsCover, getStageDiscogsImages, getStageDiscogsTracklist, searchStageDiscogsReleases } from './stage-discogs-fixture.js';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env') });
@@ -35,6 +36,7 @@ const ebayClientId = process.env.EBAY_CLIENT_ID?.trim();
 const ebayClientSecret = process.env.EBAY_CLIENT_SECRET?.trim();
 const ebayMarketplaceId = process.env.EBAY_MARKETPLACE_ID?.trim() || 'EBAY_US';
 const youtubeApiKey = process.env.YOUTUBE_API_KEY?.trim();
+const isStageEnvironment = process.env.APP_ENV === 'stage';
 const catalogEnrichment = new CatalogEnrichmentService(prisma, discogsToken);
 const coverCache = new Map<number, string | null>();
 const pendingCoverLookups = new Map<number, Promise<string | null>>();
@@ -601,6 +603,11 @@ app.get('/api/discogs/search', async (req, res) => {
     return;
   }
 
+  if (isStageEnvironment) {
+    res.json(searchStageDiscogsReleases({ query, artist, title: releaseTitle, catalogNumber, barcode }));
+    return;
+  }
+
   if (!discogsToken) {
     const fallbackResults = [
       {
@@ -666,6 +673,11 @@ app.get('/api/discogs/releases/:id/cover', async (req, res) => {
     return;
   }
 
+  if (isStageEnvironment) {
+    res.json({ coverImage: getStageDiscogsCover(releaseId) });
+    return;
+  }
+
   if (!discogsToken) {
     res.json({ coverImage: null });
     return;
@@ -701,6 +713,15 @@ app.get('/api/discogs/releases/:id/images', async (req, res) => {
     res.status(400).json({ error: 'A valid Discogs release ID is required.' });
     return;
   }
+  if (isStageEnvironment) {
+    const images = getStageDiscogsImages(releaseId);
+    if (!images) {
+      res.status(404).json({ error: 'Stage Discogs release not found.' });
+      return;
+    }
+    res.json({ images });
+    return;
+  }
   if (!discogsToken) {
     res.status(503).json({ error: 'Discogs authentication is not configured.' });
     return;
@@ -717,6 +738,15 @@ app.get('/api/discogs/releases/:id/tracklist', async (req, res) => {
   const releaseId = Number(req.params.id);
   if (!Number.isInteger(releaseId) || releaseId <= 0) {
     res.status(400).json({ error: 'A valid Discogs release ID is required.' });
+    return;
+  }
+  if (isStageEnvironment) {
+    const tracks = getStageDiscogsTracklist(releaseId);
+    if (!tracks) {
+      res.status(404).json({ error: 'Stage Discogs release not found.' });
+      return;
+    }
+    res.json({ tracks });
     return;
   }
   if (!discogsToken) {
@@ -757,6 +787,15 @@ app.get('/api/discogs/releases/:id/catalog-info', async (req, res) => {
     res.status(400).json({ error: 'A valid Discogs release ID is required.' });
     return;
   }
+  if (isStageEnvironment) {
+    const info = getStageDiscogsCatalogInfo(releaseId);
+    if (!info) {
+      res.status(404).json({ error: 'Stage Discogs release not found.' });
+      return;
+    }
+    res.json(info);
+    return;
+  }
   if (!discogsToken) {
     res.status(503).json({ error: 'Discogs authentication is not configured.' });
     return;
@@ -774,6 +813,22 @@ app.get('/api/discogs/releases/:id/context', async (req, res) => {
   const cdEntryId = Number(req.query.cdEntryId);
   if (!Number.isInteger(releaseId) || releaseId <= 0) {
     res.status(400).json({ error: 'A valid Discogs release ID is required.' });
+    return;
+  }
+
+  if (isStageEnvironment) {
+    const context = getStageDiscogsContext(releaseId);
+    if (!context) {
+      res.status(404).json({ error: 'Stage Discogs release not found.' });
+      return;
+    }
+    if (Number.isInteger(cdEntryId) && cdEntryId > 0) {
+      await prisma.cdEntry.updateMany({
+        where: { id: cdEntryId, discogsId: releaseId },
+        data: { artistSummary: context.artistProfile, discogsNotes: context.description, discogsNotesSource: context.descriptionSource, discogsContextUpdatedAt: new Date(), genre: context.genre, style: context.style },
+      });
+    }
+    res.json(context);
     return;
   }
 
