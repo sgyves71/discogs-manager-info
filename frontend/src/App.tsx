@@ -1236,13 +1236,21 @@ function App() {
     || releaseContextStatus.startsWith('Loading')
     || (includeEbayAuctionValues && ebayListingStatus.startsWith('Loading'))
   ));
+  const selectedReleasePendingTasks = [
+    releaseCatalogInfoStatus.startsWith('Loading') ? 'release-specific catalog data from Discogs' : null,
+    releaseContextStatus.startsWith('Loading') ? 'artist and release information from Discogs' : null,
+    includeEbayAuctionValues && ebayListingStatus.startsWith('Loading') ? 'current eBay auction values' : null,
+  ].filter((task): task is string => Boolean(task));
   const uiLockMessage = catalogSaveAction || (selectedReleaseLoading ? 'Loading Selected Release…' : null);
+  const uiLockDetail = catalogSaveAction
+    ? 'Please wait while the update completes.'
+    : `Fetching ${selectedReleasePendingTasks.join(', ')}.`;
 
   return (
     <div className="app-layout" aria-busy={Boolean(uiLockMessage)} onKeyDownCapture={(event) => {
       if (uiLockMessage) { event.preventDefault(); event.stopPropagation(); }
     }}>
-      {uiLockMessage ? <div className="catalog-save-overlay" role="status" aria-live="assertive"><div><strong>{uiLockMessage}</strong><span>Please wait while the update completes.</span></div></div> : null}
+      {uiLockMessage ? <div className="catalog-save-overlay" role="status" aria-live="assertive"><div><strong>{uiLockMessage}</strong><span>{uiLockDetail}</span></div></div> : null}
       <aside className="app-nav" aria-label="Application navigation">
         <div className="app-brand">Discogs Manager</div>
         <button type="button" className={activePage === 'search' ? 'active' : ''} onClick={() => setActivePage('search')}>Search &amp; Scan</button>

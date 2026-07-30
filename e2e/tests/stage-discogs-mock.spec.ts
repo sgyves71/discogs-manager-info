@@ -93,6 +93,7 @@ test.describe('Stage Discogs Mock', () => {
     await page.getByText('Mocked CD Album', { exact: true }).click();
 
     await expect(page.getByRole('status')).toContainText('Loading Selected Release');
+    await expect(page.getByRole('status')).toContainText('release-specific catalog data from Discogs');
     await expect(page.locator('.app-layout')).toHaveAttribute('aria-busy', 'true');
   });
 
