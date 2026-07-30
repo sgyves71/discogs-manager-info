@@ -43,12 +43,14 @@ body {
 .catalog-save-overlay > div {
   display: grid;
   gap: 0.45rem;
-  min-width: min(22rem, 100%);
+  width: min(34rem, 100%);
+  min-width: 0;
   padding: 1.25rem 1.5rem;
   border: 1px solid var(--accent);
   border-radius: 0.8rem;
   background: var(--card-bg);
   box-shadow: 0 1.25rem 3rem rgb(0 0 0 / 45%);
+  text-align: left;
 }
 
 .catalog-save-overlay span {
