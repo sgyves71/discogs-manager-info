@@ -603,6 +603,26 @@ function App() {
     }
   }
 
+  function clearSearch() {
+    setSearchArtist('');
+    setSearchAlbumTitle('');
+    setSearchCatalogNumber('');
+    setSearchBarcode('');
+    setResults([]);
+    setCoverImages({});
+    requestedCoverIds.current.clear();
+    setSelectedRelease(null);
+    setReleaseCatalogInfoStatus('');
+    setReleaseContext(null);
+    setReleaseContextStatus('');
+    setEbayListingStats(null);
+    setEbayListingStatus('');
+    setResultCountryFilter('');
+    setHasSearched(false);
+    setCurrentPage(1);
+    setStatus('Search cleared.');
+  }
+
   async function selectSearchResult(release: DiscogsResult) {
     setExpandedArtistSummary(null);
     setSelectedRelease(release);
@@ -1308,7 +1328,10 @@ function App() {
               placeholder="Barcode"
             />
           </div>
-          <button type="submit" disabled={loading || (!searchArtist.trim() && !searchAlbumTitle.trim() && !searchCatalogNumber.trim() && !searchBarcode.trim())}>{loading ? 'Searching...' : 'Look up'}</button>
+          <div className="search-actions">
+            <button type="submit" disabled={loading || (!searchArtist.trim() && !searchAlbumTitle.trim() && !searchCatalogNumber.trim() && !searchBarcode.trim())}>{loading ? 'Searching...' : 'Look up'}</button>
+            <button type="button" className="secondary-button" onClick={clearSearch} disabled={loading}>Clear</button>
+          </div>
         </form>
 
         <div className="search-section-divider" />
