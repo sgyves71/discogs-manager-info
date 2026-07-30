@@ -1,0 +1,97 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model CdEntry {
+  id               Int      @id @default(autoincrement())
+  title            String
+  artist           String
+  artistSortName   String   @default("")
+  year             Int?
+  country          String?
+  label            String?
+  format           String?
+  genre            String?
+  style            String?
+  discogsId        Int?
+  discogsUri       String?
+  catalogNumber    String?
+  barcode          String?
+  mediaCondition   String?
+  estimatedValue   Float?
+  valueLastCheckedAt DateTime?
+  notes            String?
+  discogsCollectionSyncStatus     String   @default("NOT_SYNCED")
+  discogsCollectionInstanceId     Int?
+  discogsCollectionSyncedAt       DateTime?
+  coverImageData                  Bytes?
+  coverImageMimeType              String?
+  coverImageUpdatedAt             DateTime?
+  artistSummary                   String?
+  discogsNotes                    String?
+  discogsNotesSource              String?
+  discogsContextUpdatedAt         DateTime?
+  youTubeTrackMatches             YouTubeTrackMatch[]
+  personalTrackMatches            PersonalTrackMatch[]
+  createdAt        DateTime @default(now())
+}
+
+model YouTubeTrackMatch {
+  id        Int      @id @default(autoincrement())
+  cdEntryId Int
+  trackKey  String
+  videoId   String
+  videoTitle String
+  videoUrl  String
+  selectedAt DateTime @default(now())
+  cdEntry   CdEntry  @relation(fields: [cdEntryId], references: [id], onDelete: Cascade)
+
+  @@unique([cdEntryId, trackKey])
+}
+
+model MusicLibrary {
+  id            Int      @id @default(autoincrement())
+  rootPath      String   @unique
+  lastScannedAt DateTime?
+  tracks        MusicLibraryTrack[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model MusicLibraryTrack {
+  id              Int      @id @default(autoincrement())
+  libraryId       Int
+  filePath        String   @unique
+  artist          String
+  album           String
+  title           String
+  trackNumber     Int?
+  discNumber      Int?
+  durationSeconds Float?
+  format          String?
+  normalizedArtist String
+  normalizedAlbum  String
+  normalizedTitle  String
+  indexedAt       DateTime @default(now())
+  library         MusicLibrary @relation(fields: [libraryId], references: [id], onDelete: Cascade)
+  personalMatches PersonalTrackMatch[]
+
+  @@index([libraryId, normalizedArtist, normalizedAlbum, normalizedTitle])
+}
+
+model PersonalTrackMatch {
+  id           Int      @id @default(autoincrement())
+  cdEntryId    Int
+  trackKey     String
+  libraryTrackId Int
+  matchedAt    DateTime @default(now())
+  cdEntry      CdEntry  @relation(fields: [cdEntryId], references: [id], onDelete: Cascade)
+  libraryTrack MusicLibraryTrack @relation(fields: [libraryTrackId], references: [id], onDelete: Cascade)
+
+  @@unique([cdEntryId, trackKey])
+}

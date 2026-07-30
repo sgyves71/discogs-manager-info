@@ -1,0 +1,104 @@
+# Discogs Manager — Project Notes
+
+This document records durable product and technical decisions made during development.
+
+## Purpose
+
+Discogs Manager is a personal, local-first application for cataloging a CD collection and tracking its collector value over time.
+
+## Technology
+
+- Frontend: React, Vite, TypeScript
+- Backend: Express, TypeScript
+- Local persistence: SQLite with Prisma
+- External catalog and market data: Discogs API
+
+## Development setup
+
+- Frontend development server: `http://localhost:5173`
+- Backend development server: `http://localhost:3100`
+- Start both from the repository root with `npm.cmd run dev` on this Windows machine. (`npm` is blocked in PowerShell by the current execution policy.)
+
+### Starting, stopping, and restarting servers
+
+- **Normal start:** From the repository root, run `npm.cmd run dev`. Keep that terminal open while developing.
+- **Normal stop:** Focus the terminal running the dev command and press `Ctrl+C` once. This stops both frontend and backend processes.
+- **Restart after source changes:** Stop the running command with `Ctrl+C`, then run `npm.cmd run dev` again.
+- **Verify services:** Open `http://localhost:5173` for the frontend. The backend health check is `http://localhost:3100/api/health`.
+- **Backend fallback:** If the TypeScript watcher fails on this machine, build the backend with `npm.cmd run build --workspace backend`, then run `node.exe backend/dist/index.js` from the repository root. Stop it with `Ctrl+C` in the terminal where it is running before rebuilding or starting it again.
+- **Home-network access:** Vite is configured with `host: '0.0.0.0'`, exposing the frontend on the local network at port `5173`. Keep this restricted to the Windows Private firewall profile; do not create router port-forwarding rules.
+- **Phone camera HTTPS:** The LAN frontend runs at `https://192.168.68.72:5173` using a local `mkcert` certificate stored in `frontend/certs/` (ignored by Git). Install `discogs-manager-rootCA.cer` from that directory as a trusted CA on the phone before using the camera scanner. Regenerate the certificate if the PC's LAN IP changes.
+
+## Discogs search decisions
+
+- This application catalogs CDs only. Discogs database searches send the `format=CD` filter.
+- Searches request up to 100 Discogs matches; the interface displays 20 results per page.
+- Search results sort by release year ascending before pagination; releases with no known year appear last.
+- Searches accept separate Artist and Album title inputs and send them as Discogs `artist` and `release_title` filters.
+- The Advanced search section supports Catalog number and Barcode inputs, sent as Discogs `catno` and `barcode` filters.
+- Search-result tiles display cover art and clearly labeled release metadata: year, label/studio, country, catalog number, barcode, and format.
+- All Discogs API calls must use the shared backend scheduler: no more than one request every 1.1 seconds (about 54/minute), with `Retry-After` backoff for HTTP 429 responses. This stays below Discogs' authenticated 60-request-per-minute limit.
+- When search responses lack image URLs, visible result tiles request cover art lazily from the Discogs release-detail endpoint. Duplicate requests are coalesced and all detail requests use the shared rate limiter.
+- Cover art will remain API-provided display data. Do not download, persist, or store Discogs images locally; use only transient in-memory loading/caching while the app runs.
+- Selecting a release expands that result tile in place with Discogs context, following a notes fallback chain: selected release notes, then master-release (album) notes, then the primary artist/band profile. The tile labels the source used, loads lazily, and uses the same shared Discogs rate limiter.
+- The Advanced search Barcode field includes a ZXing-powered rear-camera scanner for EAN/UPC and Code 128 formats. It fills the Barcode filter and starts the Discogs search automatically; it requires HTTPS and browser camera permission, and supports iPhone browsers as well as Android.
+- When saving a selected Discogs release, the user chooses its media condition. The backend stores Discogs' condition-specific price suggestion as `estimatedValue`, together with `mediaCondition` and `valueLastCheckedAt`.
+- Discogs price suggestions require the connected Discogs account to have Seller Settings completed. Until then, the app still saves the CD but leaves its valuation fields empty. Discogs pricing is not displayed in search-result tiles because this account cannot currently retrieve it.
+- The save form accepts an optional manual estimated-value override. A manual value takes precedence over Discogs pricing and does not set the Discogs valuation check timestamp.
+- Saved collection entries can be corrected through "Correct Discogs match." It reopens the search with the saved artist/title, applies a newly selected release to the same local record, preserves notes and media condition, and clears or refreshes valuation data so it is not associated with the former release.
+- Collection entries offer a "View details" panel that loads live Discogs cover art and artist/release context plus live eBay listing context without persisting API image data. Catalog number and barcode are now saved for new or rematched entries so they can be shown in this view and used for eBay lookup.
+- The collection browser is a server-paginated, table-like list grid (Artist, Album, Year, Catalog Number, actions) at 24 entries per page and sorts artist/title alphabetically. Its debounced partial-match search covers artist, album title, catalog number, and barcode, allowing the browser to scale to 1,500+ CDs without rendering every entry at once. Each row offers View details and Change association actions.
+- The catalog browser now uses a denser Artist / Album / Year grid with an ellipsis menu. The menu offers View details, Change association, Search eBay (catalog number first, otherwise artist/title, limited to CDs), and a confirmed local-only Remove entry action. Deleting an entry never changes Discogs.
+- A catalog entry's detail popover offers direct actions for validated eBay listings, Discogs Marketplace listings, the Discogs release page, correction, and local removal. It can also load all Discogs release images on demand into a gallery; images remain fetched from Discogs and are not stored locally.
+- The detail popover can open an on-demand Discogs tracklist popover. Each track has a YouTube search action that opens a new browser tab using the cleaned artist name, album title, and track title; the app does not embed or download YouTube media.
+- The tracklist supports YouTube matching through the official YouTube Data API. It searches and ranks a small set of likely videos using the selected artist, album, track name, and (when Discogs supplies it) duration, while rejecting obvious non-track results such as full albums and playlists. The user chooses the correct candidate; that choice is saved locally for the catalog entry and track and opens in a normal YouTube browser tab. A regular YouTube search fallback remains available. This needs `YOUTUBE_API_KEY` in `backend/.env`; no YouTube key is stored in source control.
+- The interface uses a left navigation with separate Search & Scan and Catalog views. Switching views preserves in-memory search and catalog state.
+- Discogs search responses commonly provide a combined title in the form `Artist - Album`, rather than a separate artist field. The backend derives the artist and album title from that value when necessary.
+- Discogs sometimes appends an internal numeric artist disambiguator such as `(2)`. The app strips that suffix when it ingests Discogs data, saves or corrects catalog entries, requests Discogs searches, and normalizes existing stored catalog artist names at backend startup. The clean artist name is therefore used in displays plus eBay and YouTube searches.
+- Catalog text is preserved as Discogs supplies it, including alternate Japanese or other non-Latin text. Before external eBay searches and eBay listing-title validation, the app instead uses a normalized ASCII form of artist and album title, removing non-ASCII characters and leftover separators. The same clean search form is used for YouTube lookups and searches.
+- Personal local music-library support is configured from the Music Library navigation page. The initial root is `H:\Music\Rips`. The backend scans only supported audio files under this folder, reads tags through `music-metadata`, and stores metadata/path indexes locally in SQLite; it never modifies, moves, or uploads music files. A background scan can be started or repeated from the page. From a Discogs tracklist, “Find personal copy” matches normalized catalog artist/album/track tags, remembers a successful local match, and streams the matching file through a range-enabled local API endpoint into the app's audio player.
+- Personal-track matching requires exact normalized artist and album tags first, then uses a conservative scored title comparison within only that album. It tolerates small spelling/punctuation differences such as `Till` vs. `Til'`, repeated-letter variants, and leading track-number/artist filename text when a title tag is absent; unrelated track names do not match.
+- Personal-track matching now also permits a strong album-title substring fallback after the artist match is exact, allowing qualifiers such as `Staying A Life, Disc 1` to match catalog album `Staying A Life`; it still requires a strong track-title match before selecting a file.
+- For local music matching and album-folder finding, the app first queries the complete normalized artist tag. If that finds no tracks and the catalog artist has more than two space-separated terms, it retries after removing one final term at a time (never below two terms), then continues through the existing album and track safeguards.
+- A music-library rescan refreshes stored local file paths when files are renamed or moved inside the configured library root. If local playback cannot open a stale path, the UI explains that a rescan is needed instead of leaving an unexplained audio error.
+- Catalog cover art is stored locally in SQLite as the small Discogs `uri150` thumbnail bytes plus MIME type, not merely as a remote image URL. New catalog saves and corrected Discogs associations fetch and persist their thumbnail; `/api/cds/:id/cover` serves it locally. The catalog list renders the stored cover as a compact leading thumbnail, and the `/api/catalog-cover-backfill` background job fills missing covers for existing releases one at a time under Discogs rate pacing.
+- Catalog details now provide an `Update estimated value` action in the ellipsis menu. It saves a manual non-negative dollar amount locally (or clears the value when blank) through a dedicated endpoint and clears the Discogs-check timestamp because the user has manually set the value.
+- Catalog labels and catalog numbers now use the Discogs release endpoint's `labels` array (label names and release catalog numbers) instead of the broad database-search label field, which can include company roles such as distributor, publisher, mastering house, and copyright holder. Selecting a search result loads and displays these exact release-level values before it is saved or used for its eBay lookup. New saves/corrections use them, and the completed `/api/catalog-release-info-backfill` updated all existing records under the shared Discogs rate pacing.
+- Catalog barcodes are extracted only from a release's `Barcode (Text)` and `Barcode (Scanned)` Discogs identifiers. Matrix/runout, rights-society, mastering, and other identifiers are excluded. The barcode field is omitted from cards when neither barcode identifier exists; the same release-info backfill refreshes existing entries at the shared Discogs rate limit.
+- The Search & Scan page uses a two-column desktop workspace: all four search inputs (artist, album title, catalog number, barcode) and the scanner are on the left, while a selected release's editable catalog form is on the right. The estimated-value editor defaults to $15.00 for a new selection unless the user changes it.
+- On phone-sized screens, artist summaries are limited to the first 50 words and provide a `Show all` action that opens the complete Discogs text in an in-app dialog. Desktop retains the full inline summary.
+- A selected search result shows an `Edit & Add` button directly below its cover image. It scrolls to the selected-release editor panel, making the mobile scan-and-verify flow faster.
+- Catalog entries default to `Very Good Plus (VG+)` as their media condition. All 361 existing entries were set to that condition on 2026-07-29.
+- Discogs artist, title, and label text is sanitized before display/storage/search: Latin letters (including accents), numbers, whitespace, and ordinary music punctuation are retained; emoji, control characters, and appended non-Latin-script noise are removed. Catalog numbers and barcodes remain unchanged.
+- Catalog detail menus offer `Edit catalog details`, which edits the saved artist, title, year, country, label, format, catalog number, barcode, condition, and notes without modifying the release's Discogs association. `Correct Discogs match` remains the separate association-changing workflow.
+- Trailing equals signs are removed from artist and album-title text during cleanup and future Discogs text normalization. Four existing catalog entries were corrected on 2026-07-29.
+- Personal music-folder matching now ranks broad artist/album candidates instead of relying on strict normalized equality. It treats low-value words (such as `the`, `a`, and `of`) as optional, accepts partial/qualified album names, and returns close matching folders for user selection rather than missing likely local copies.
+- Catalog records now persist Discogs artist summary, release/album/artist notes, note source, and context refresh timestamp. New saves and Discogs-match corrections capture this context; opening an existing catalog detail card also caches its live context locally. The existing SQLite-stored primary cover image is now used first in catalog details, with live Discogs cover art only as a fallback.
+- `POST /api/catalog-discogs-context-backfill` rate-safely backfills missing persisted Discogs contexts for existing catalog entries. It runs one record at a time through the shared Discogs scheduler and began for 391 entries on 2026-07-29.
+- The Discogs-context backfill completed for 391 entries on 2026-07-29, storing context for 382; 9 had no usable Discogs context or could not be fetched.
+- Catalog records now also retain Discogs Genre and Style. New saves, corrected Discogs matches, and release-context refreshes store both values. `POST /api/catalog-genre-style-backfill` backfills records missing either value, one record at a time through the shared Discogs rate scheduler and retry handling.
+- Personal-track playback accepts a close album match (score at least 0.55) when the track title itself is a strong match (at least 0.75). This accommodates minor metadata differences such as `Sumthin` versus `Somethin'` without weakening song-level matching.
+- Catalog sorting uses a persisted artist sort name that ignores a leading `The` (for example, `The Black Crowes` sorts under `Black Crowes`) while retaining the original artist display name. The sort field is maintained for new saves, manual edits, and Discogs-match corrections.
+- The initial OOP/component refactor moved catalog cover/context enrichment and all catalog backfill jobs into `backend/src/services/CatalogEnrichmentService`. `backend/src/index.ts` now acts more as route composition, while standalone frontend UI for the local audio player and artist-summary dialog lives in `frontend/src/components/`.
+- The catalog browse/search/pagination/list-row UI is now encapsulated in `frontend/src/components/CatalogPage.tsx`, with typed props and shared `CdEntry` data moved to `frontend/src/types.ts`. The existing catalog-detail dialog remains behaviorally unchanged for this refactor phase.
+- Release format display and collector-value refinement remain planned follow-up work.
+
+## eBay pricing context
+
+- eBay current-listing data is queried through the Browse API using a Production App ID (client ID) and Cert ID (client secret), kept only in `backend/.env` as `EBAY_CLIENT_ID` and `EBAY_CLIENT_SECRET`.
+- The app will target `EBAY_US` unless the user chooses another marketplace.
+- Selecting a Discogs tile searches eBay Browse by its Discogs catalog number first. If eBay returns no matches, it falls back to an artist/title lookup constrained to eBay's Music CDs category (`176984`). The tile displays which method succeeded, the number of current listings, and low, average, and high prices across its first 20 priced results; all returned listing statistics are green for a catalog-number match and yellow for a fallback match. This is explicitly labeled as active asking-price context, not an appraisal or sold-price history.
+- All eBay API price lookups search the Music CDs category by catalog number first, then filter the returned listings. Every counted listing must explicitly identify a CD/compact disc and include both the selected artist and album title. If no catalog-number result survives that validation, the app falls back to an artist-and-album search and applies the same filter. The catalog menu's Search eBay action first runs this same validation, then opens eBay using either the catalog number alone or the artist/album/CD fallback terms; it does not combine all terms into an over-specific query.
+- OAuth works with the configured Production keyset, but the eBay sold-history Marketplace Insights endpoint returned HTTP 403 for this application. It remains unavailable unless eBay grants that separate access.
+- Marketplace Insights is now implemented behind `GET /api/ebay/sold-listing-stats`, but deliberately is not called or displayed by the frontend until the user confirms eBay has granted access. It uses eBay's `item_sales/search` endpoint with the CD category, catalog number first, then artist/title fallback; it reports a clear pending-access state on eBay HTTP 403.
+- Next step for sold-history access: request Marketplace Insights API entitlement for the Production application through eBay Application Growth Check or Developer Technical Support. The request describes this as a private, local CD-collection appraisal tool that uses sold history only for personal valuation context, with modest volume (up to 50 requests/day and 10/hour), no data resale or public redistribution, and API-rate-limit compliance. Marketplace Insights is documented as restricted and not open to new users, so approval is not guaranteed.
+- If Application Growth Check does not show the production app/keyset, activate Developer Support in eBay Developer Profile & Contacts, then open an AI-Assisted Support ticket titled "Marketplace Insights API access request — production App ID." Include the production App ID, successful OAuth status, and the current HTTP 403 from the sold-history endpoint.
+
+## Discogs collection sync (planned)
+
+- Every catalog entry now persists a Discogs collection-sync status (`NOT_SYNCED` by default), remote collection instance ID, and successful-sync timestamp. The future Discogs “Have” sync must skip entries already marked synced, preventing duplicate collection additions.
+- The backend prevents duplicate catalog records by rejecting any new save or match correction that would use a Discogs release ID already present in another catalog entry. It returns HTTP 409 with a clear message and does not alter the database.
+
+## Working agreement
+
+- Keep this file updated when we make a durable product, data-model, API, or workflow decision.

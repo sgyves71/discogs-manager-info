@@ -1,0 +1,13 @@
+node_modules
+frontend/dist
+backend/dist
+backend/prisma/dev.db
+backend/prisma/*.db-journal
+.env
+frontend/certs/
+.DS_Store
+.dev-server.out.log
+.dev-server.err.log
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts

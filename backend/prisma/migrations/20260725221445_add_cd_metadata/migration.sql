@@ -1,0 +1,7 @@
+-- AlterTable
+ALTER TABLE "CdEntry" ADD COLUMN "country" TEXT;
+ALTER TABLE "CdEntry" ADD COLUMN "discogsId" INTEGER;
+ALTER TABLE "CdEntry" ADD COLUMN "discogsUri" TEXT;
+ALTER TABLE "CdEntry" ADD COLUMN "format" TEXT;
+ALTER TABLE "CdEntry" ADD COLUMN "label" TEXT;
+ALTER TABLE "CdEntry" ADD COLUMN "notes" TEXT;

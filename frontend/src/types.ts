@@ -1,0 +1,24 @@
+export type CdEntry = {
+  id: number;
+  title: string;
+  artist: string;
+  year: number | null;
+  country: string | null;
+  label: string | null;
+  format: string | null;
+  genre?: string | null;
+  style?: string | null;
+  estimatedValue: number | null;
+  notes: string | null;
+  discogsId: number | null;
+  discogsUri: string | null;
+  catalogNumber: string | null;
+  barcode: string | null;
+  mediaCondition: string | null;
+  valueLastCheckedAt: string | null;
+  hasCover?: boolean;
+  artistSummary?: string | null;
+  discogsNotes?: string | null;
+  discogsNotesSource?: 'release' | 'album' | 'artist' | null;
+  discogsContextUpdatedAt?: string | null;
+};

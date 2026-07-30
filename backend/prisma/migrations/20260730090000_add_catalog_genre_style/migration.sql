@@ -1,0 +1,2 @@
+ALTER TABLE "CdEntry" ADD COLUMN "genre" TEXT;
+ALTER TABLE "CdEntry" ADD COLUMN "style" TEXT;
