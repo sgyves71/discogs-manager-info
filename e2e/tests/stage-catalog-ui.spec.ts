@@ -43,6 +43,26 @@ test.describe('Stage Catalog User Interface', () => {
     await expect(page.locator('.collection-cover img')).toHaveAttribute('src', '/api/cds/42/cover?updated=2026-07-30T19%3A00%3A00.000Z');
   });
 
+  test('Shows No Recent Sales When a Checked Release Has No Market Values', async ({ page }) => {
+    await page.route(/\/api\/cds\?.*/, (route) => route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        items: [{
+          id: 73, artist: 'No Sale Data Artist', title: 'No Sale Data Album', year: 2001, country: 'US', label: 'Stage Records', format: 'CD, Album',
+          catalogNumber: 'NO-SALES-001', barcode: null, mediaCondition: 'Very Good Plus (VG+)', estimatedValue: 15,
+          notes: null, hasCover: false, discogsId: 900073, discogsUri: '/release/900073',
+          discogsLastSoldAt: null, discogsMarketLow: null, discogsMarketMedian: null, discogsMarketHigh: null,
+          discogsMarketCurrency: null, discogsMarketStatsCheckedAt: null,
+        }], total: 1, page: 1, pageSize: 24,
+      }),
+    }));
+
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Catalog', exact: true }).click();
+    await page.getByText('No Sale Data Album', { exact: true }).click();
+    await expect(page.getByText('No recent sale detail found.', { exact: true })).toBeVisible();
+  });
+
   test('Blocks Repeat Catalog Saves Until the First Save Completes', async ({ page }) => {
     let saveRequests = 0;
     await page.route('**/api/cds', async (route) => {

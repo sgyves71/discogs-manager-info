@@ -1591,7 +1591,7 @@ function App() {
                   <div><strong>High:</strong> {formatDiscogsMarketPrice(viewedEntry.discogsMarketHigh, viewedEntry.discogsMarketCurrency)}</div>
                 </div>
                 <p className="hint">Last checked: {formatDiscogsMarketDate(viewedEntry.discogsMarketStatsCheckedAt)}</p>
-              </> : <p className="hint">Not checked yet.</p>}
+              </> : <p className="hint">No recent sale detail found.</p>}
             </div>
             {editingCatalogDetails && catalogDetailsForm ? <form className="detail-section catalog-details-editor" onSubmit={saveCatalogDetails}>
               <strong>Edit catalog details</strong>
