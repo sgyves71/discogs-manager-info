@@ -523,6 +523,23 @@ app.post('/api/catalog-genre-style-backfill', async (_req, res) => {
   res.status(202).json(catalogEnrichment.genreStyleBackfill);
 });
 
+app.get('/api/catalog-discogs-market-stats-backfill', (_req, res) => {
+  res.json(catalogEnrichment.marketStatsBackfill);
+});
+
+app.post('/api/catalog-discogs-market-stats-backfill', async (_req, res) => {
+  if (catalogEnrichment.marketStatsBackfill.status === 'running') {
+    res.status(409).json({ error: 'Discogs market-statistics backfill is already running.' });
+    return;
+  }
+  if (isStageEnvironment) {
+    res.status(503).json({ error: 'Live Discogs page scraping is disabled in Stage.' });
+    return;
+  }
+  void catalogEnrichment.startMarketStatsBackfill();
+  res.status(202).json(catalogEnrichment.marketStatsBackfill);
+});
+
 app.get('/api/cds/:id/cover', async (req, res) => {
   const entryId = Number(req.params.id);
   const entry = Number.isInteger(entryId) && entryId > 0

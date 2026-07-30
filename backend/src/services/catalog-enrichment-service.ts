@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type { PrismaClient } from '@prisma/client';
 import { getDiscogsReleaseCatalogInfo, getDiscogsReleaseContext, getDiscogsReleaseCover } from '../discogs.js';
+import { fetchDiscogsMarketStats } from '../discogs-market-stats.js';
 
 export type BackfillState = {
   status: 'idle' | 'running' | 'complete' | 'failed';
@@ -17,6 +18,7 @@ export class CatalogEnrichmentService {
   readonly releaseInfoBackfill: BackfillState = { status: 'idle', processed: 0, updated: 0, skipped: 0, total: 0, error: null };
   readonly contextBackfill: BackfillState = { status: 'idle', processed: 0, stored: 0, skipped: 0, total: 0, error: null };
   readonly genreStyleBackfill: BackfillState = { status: 'idle', processed: 0, stored: 0, skipped: 0, total: 0, error: null };
+  readonly marketStatsBackfill: BackfillState = { status: 'idle', processed: 0, stored: 0, skipped: 0, total: 0, error: null };
 
   constructor(private readonly prisma: PrismaClient, private readonly discogsToken?: string) {}
 
@@ -92,6 +94,28 @@ export class CatalogEnrichmentService {
 
   async startGenreStyleBackfill(): Promise<void> {
     await this.runBackfill(this.genreStyleBackfill, async () => this.prisma.cdEntry.findMany({ where: { discogsId: { not: null }, OR: [{ genre: null }, { style: null }] }, select: { id: true, discogsId: true } }), async (entry) => this.storeContext(entry.id, entry.discogsId!));
+  }
+
+  async startMarketStatsBackfill(): Promise<void> {
+    await this.runBackfill(
+      this.marketStatsBackfill,
+      async () => this.prisma.cdEntry.findMany({ where: { discogsId: { not: null } }, select: { id: true, discogsId: true } }),
+      async (entry) => {
+        const marketStats = await fetchDiscogsMarketStats(entry.discogsId!);
+        await this.prisma.cdEntry.update({
+          where: { id: entry.id },
+          data: {
+            discogsLastSoldAt: marketStats.lastSoldAt,
+            discogsMarketLow: marketStats.low,
+            discogsMarketMedian: marketStats.median,
+            discogsMarketHigh: marketStats.high,
+            discogsMarketCurrency: marketStats.currency,
+            discogsMarketStatsCheckedAt: new Date(),
+          },
+        });
+        return Boolean(marketStats.lastSoldAt || marketStats.low != null || marketStats.median != null || marketStats.high != null);
+      },
+    );
   }
 
   private reset(state: BackfillState): void {
