@@ -211,6 +211,7 @@ function App() {
   const [personalArtistFolders, setPersonalArtistFolders] = useState<PersonalArtistFolder[] | null>(null);
   const [personalBrowsableAlbumFolders, setPersonalBrowsableAlbumFolders] = useState<PersonalBrowsableAlbumFolder[] | null>(null);
   const [personalFolderSearch, setPersonalFolderSearch] = useState('');
+  const [showPersonalFolderMapping, setShowPersonalFolderMapping] = useState(false);
   const [personalAlbumMappingStatus, setPersonalAlbumMappingStatus] = useState('');
   const [musicLibrary, setMusicLibrary] = useState<MusicLibraryInfo | null>(null);
   const [musicLibraryPath, setMusicLibraryPath] = useState('H:\\Music\\Rips');
@@ -368,6 +369,7 @@ function App() {
       setPersonalArtistFolders(null);
       setPersonalBrowsableAlbumFolders(null);
       setPersonalFolderSearch('');
+      setShowPersonalFolderMapping(false);
       setPersonalAlbumMappingStatus('');
       return;
     }
@@ -392,6 +394,7 @@ function App() {
     setPersonalArtistFolders(null);
     setPersonalBrowsableAlbumFolders(null);
     setPersonalFolderSearch('');
+    setShowPersonalFolderMapping(false);
     setPersonalAlbumMappingStatus('');
     setShowTracklist(false);
     setYouTubeStatus('');
@@ -912,13 +915,16 @@ function App() {
       const data = await response.json() as { status?: 'matched' | 'notFound' | 'unindexed'; match?: PersonalTrackMatch | null; error?: string };
       if (!response.ok) throw new Error(data.error || 'Unable to search the personal music library.');
       if (data.status === 'matched' && data.match) {
+        setShowPersonalFolderMapping(false);
         setPersonalTrackMatches((current) => [...current.filter((match) => match.trackKey !== data.match!.trackKey), data.match!]);
         playLocalCopy(data.match);
         setPersonalMusicStatus(`Found your local copy of “${track.title}”.`);
       } else if (data.status === 'unindexed') {
         setPersonalMusicStatus('Your music library has not been scanned yet. Open Music Library in the left navigation and choose Scan library.');
       } else {
-        setPersonalMusicStatus(`No tagged local copy of “${track.title}” was found. You can scan or rescan the music library from the left navigation.`);
+        setShowPersonalFolderMapping(true);
+        setPersonalMusicStatus(`No tagged local copy of “${track.title}” was found. Choose its album folder below to map this release.`);
+        void findPersonalAlbumFolder();
       }
     } catch (error) {
       setPersonalMusicStatus(error instanceof Error ? error.message : 'Unable to search the personal music library.');
@@ -962,7 +968,15 @@ function App() {
       if (!response.ok) throw new Error(updated.error || 'Unable to save the personal album folder.');
       setViewedEntry(updated);
       setItems((current) => current.map((item) => item.id === updated.id ? { ...item, personalAlbumFolderPath: updated.personalAlbumFolderPath, personalAlbumFolderMappedAt: updated.personalAlbumFolderMappedAt } : item));
-      setPersonalAlbumMappingStatus(updated.personalAlbumFolderPath ? 'Personal album folder saved. Playback will use it first.' : 'Personal album folder mapping cleared.');
+      if (updated.personalAlbumFolderPath) {
+        setPersonalMusicStatus('Personal album folder saved. Try the track again.');
+        setPersonalAlbumFolders(null);
+        setPersonalArtistFolders(null);
+        setPersonalBrowsableAlbumFolders(null);
+        setShowPersonalFolderMapping(false);
+      } else {
+        setPersonalAlbumMappingStatus('Personal album folder mapping cleared.');
+      }
     } catch (error) {
       setPersonalAlbumMappingStatus(error instanceof Error ? error.message : 'Unable to save the personal album folder.');
     }
@@ -1417,7 +1431,6 @@ function App() {
                     <button type="button" className="secondary-button" disabled={!viewedEntry.discogsId && !viewedEntry.discogsUri} onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); openDiscogsRelease(viewedEntry); }}>Open Discogs release</button>
                     <button type="button" className="secondary-button" disabled={!viewedEntry.discogsId} onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); void loadDetailImages(); }}>{showDetailImages ? 'Hide release images' : 'Show all release images'}</button>
                     <button type="button" className="secondary-button" disabled={!viewedEntry.discogsId} onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); void openTracklist(); }}>Show tracklist</button>
-                    <button type="button" className="secondary-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); void findPersonalAlbumFolder(); }}>Find personal album folder</button>
                     <button type="button" className="secondary-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); beginCatalogDetailsEdit(); }}>Edit catalog details</button>
                     <button type="button" className="secondary-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); beginEstimatedValueEdit(); }}>Update estimated value</button>
                     <button type="button" className="secondary-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); beginMatchCorrection(viewedEntry); }}>Correct Discogs match</button>
@@ -1457,7 +1470,7 @@ function App() {
             </form> : null}
             {editingEstimatedValue ? <div className="detail-section estimated-value-editor"><strong>Update estimated value</strong><div className="inline-form"><input type="number" min="0" step="0.01" value={estimatedValueInput} onChange={(event) => setEstimatedValueInput(event.target.value)} placeholder="Leave blank to clear" aria-label="Estimated value" /><button type="button" onClick={() => void saveEstimatedValue()}>Save value</button><button type="button" className="secondary-button" onClick={() => { setEditingEstimatedValue(false); setEstimatedValueStatus(''); }}>Cancel</button></div>{estimatedValueStatus ? <p className="hint">{estimatedValueStatus}</p> : null}</div> : null}
             {viewedEntry.notes ? <div className="detail-section"><strong>Your notes</strong><p>{viewedEntry.notes}</p></div> : null}
-            <div className="detail-section personal-album-mapping">
+            {showPersonalFolderMapping ? <div className="detail-section personal-album-mapping">
               <strong>Personal album folder</strong>
               <p>{viewedEntry.personalAlbumFolderPath ? 'Saved folder is preferred for local track playback.' : 'Optional fallback when automatic local matching cannot identify the correct album.'}</p>
               {viewedEntry.personalAlbumFolderPath ? <code>{viewedEntry.personalAlbumFolderPath}</code> : null}
@@ -1465,10 +1478,10 @@ function App() {
               {personalAlbumMappingStatus ? <p className="hint">{personalAlbumMappingStatus}</p> : null}
               {personalArtistFolders ? <div className="album-folder-results"><label>Find artist folder<input value={personalFolderSearch} onChange={(event) => setPersonalFolderSearch(event.target.value)} placeholder="Artist or folder name" /></label>{personalArtistFolders.filter((folder) => `${folder.name} ${folder.folderPath}`.toLocaleLowerCase().includes(personalFolderSearch.trim().toLocaleLowerCase())).slice(0, 80).map((folder) => <div className="album-folder-result" key={folder.folderPath}><strong>{folder.name}</strong><span>{folder.trackCount} indexed tracks</span><button type="button" className="secondary-button" onClick={() => void browsePersonalAlbumFolders(folder.folderPath)}>Choose artist folder</button></div>)}</div> : null}
               {personalBrowsableAlbumFolders ? <div className="album-folder-results"><strong>Album folders</strong>{personalBrowsableAlbumFolders.map((folder) => <div className="album-folder-result" key={folder.folderPath}><strong>{folder.album || folder.name}</strong><span>{folder.trackCount} indexed tracks</span><code>{folder.name}</code><button type="button" onClick={() => void savePersonalAlbumFolder(folder.folderPath)}>Use this folder</button></div>)}</div> : null}
-            </div>
+            </div> : null}
             {detailContext?.artistProfile && detailContext.descriptionSource !== 'artist' ? <div className="detail-section"><strong>Artist summary</strong><p className="artist-summary-preview"><span className="artist-summary-desktop">{formatDiscogsText(detailContext.artistProfile)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(detailContext.artistProfile))}</span></p><button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(detailContext.artistProfile!))}>Show all</button></div> : null}
             {detailContext ? <div className="detail-section"><strong>{detailContext.descriptionSource === 'release' ? 'Release notes' : detailContext.descriptionSource === 'album' ? 'Album notes' : 'Artist summary'}</strong><p className={detailContext.descriptionSource === 'artist' ? 'artist-summary-preview' : undefined}>{detailContext.description ? <>{detailContext.descriptionSource === 'artist' ? <><span className="artist-summary-desktop">{formatDiscogsText(detailContext.description)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(detailContext.description))}</span></> : formatDiscogsText(detailContext.description)}</> : 'No additional Discogs notes are available.'}</p>{detailContext.descriptionSource === 'artist' && detailContext.description ? <button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(detailContext.description!))}>Show all</button> : null}</div> : null}
-            {personalAlbumFolders ? <div className="detail-section album-folder-results"><div className="album-folder-results-header"><strong>Personal album folder{personalAlbumFolders.length === 1 ? '' : 's'}</strong><button type="button" className="secondary-button" onClick={() => setPersonalAlbumFolders(null)}>Close</button></div>{personalAlbumFolders.map((folder) => <div className="album-folder-result" key={folder.folderPath}><strong>{folder.album}</strong><span>{folder.trackCount} indexed tracks · {folder.matchType === 'exact' ? 'exact album match' : 'close album match'}</span><code>{folder.folderPath}</code><div className="form-actions"><button type="button" onClick={() => void savePersonalAlbumFolder(folder.folderPath)}>Use this folder</button><button type="button" className="secondary-button" onClick={() => { void navigator.clipboard?.writeText(folder.folderPath); setPersonalMusicStatus('Album folder path copied.'); }}>Copy path</button></div></div>)}</div> : null}
+            {showPersonalFolderMapping && personalAlbumFolders ? <div className="detail-section album-folder-results"><div className="album-folder-results-header"><strong>Personal album folder{personalAlbumFolders.length === 1 ? '' : 's'}</strong><button type="button" className="secondary-button" onClick={() => setPersonalAlbumFolders(null)}>Close</button></div>{personalAlbumFolders.map((folder) => <div className="album-folder-result" key={folder.folderPath}><strong>{folder.album}</strong><span>{folder.trackCount} indexed tracks · {folder.matchType === 'exact' ? 'exact album match' : 'close album match'}</span><code>{folder.folderPath}</code><div className="form-actions"><button type="button" onClick={() => void savePersonalAlbumFolder(folder.folderPath)}>Use this folder</button></div></div>)}</div> : null}
             {detailEbayStats?.sampledListingCount ? <div className={`detail-section ebay-listing-results ${detailEbayStats.searchMethod}`}><strong>eBay active listings</strong><p>{detailEbayStats.listingCount} listings found • {detailEbayStats.searchMethod === 'catalogNumber' ? 'catalog number match' : 'artist/title CD search'} • Low / average / high: {detailEbayStats.currency || '$'} {detailEbayStats.lowestPrice?.toFixed(2)} / {detailEbayStats.averagePrice?.toFixed(2)} / {detailEbayStats.highestPrice?.toFixed(2)}</p></div> : null}
             {showDetailImages ? (
               <div className="detail-section release-image-gallery">
