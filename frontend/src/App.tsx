@@ -249,6 +249,7 @@ function App() {
   const [musicLibraryPath, setMusicLibraryPath] = useState('H:\\Music\\Rips');
   const [musicLibraryStatus, setMusicLibraryStatus] = useState('');
   const [savingMusicLibrary, setSavingMusicLibrary] = useState(false);
+  const [savingCatalog, setSavingCatalog] = useState(false);
   const [marketStatsBackfill, setMarketStatsBackfill] = useState<MarketStatsBackfill | null>(null);
   const [marketStatsBackfillStatus, setMarketStatsBackfillStatus] = useState('');
   const [ebayListingStats, setEbayListingStats] = useState<EBayActiveListingStats | null>(null);
@@ -678,6 +679,7 @@ function App() {
 
   async function handleSave(event: FormEvent) {
     event.preventDefault();
+    if (savingCatalog) return;
     if (entryBeingCorrected && !selectedRelease) {
       setStatus('Select the correct Discogs release before applying this correction.');
       return;
@@ -699,38 +701,45 @@ function App() {
       notes,
     };
 
-    const res = await fetch(entryBeingCorrected ? `/api/cds/${entryBeingCorrected.id}` : '/api/cds', {
-      method: entryBeingCorrected ? 'PATCH' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    setSavingCatalog(true);
+    try {
+      const res = await fetch(entryBeingCorrected ? `/api/cds/${entryBeingCorrected.id}` : '/api/cds', {
+        method: entryBeingCorrected ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-    if (res.ok) {
-      const created = await res.json();
-      setItems((prev) => entryBeingCorrected
-        ? prev.map((item) => item.id === created.id ? created : item)
-        : [created, ...prev]);
-      setTitle('');
-      setArtist('');
-      setNotes('');
-      setMediaCondition('Very Good Plus (VG+)');
-      setEstimatedValueOverride('15.00');
-      setSearchArtist('');
-      setSearchAlbumTitle('');
-      setSearchCatalogNumber('');
-      setSearchBarcode('');
-      setResults([]);
-      setSelectedRelease(null);
-      setReleaseCatalogInfoStatus('');
-      const wasCorrection = Boolean(entryBeingCorrected);
-      setEntryBeingCorrected(null);
-      setCollectionRefresh((current) => current + 1);
-      setStatus(wasCorrection
-        ? (created.estimatedValue != null ? 'Discogs match corrected with a refreshed value.' : 'Discogs match corrected. The old valuation was cleared.')
-        : (created.estimatedValue != null ? 'CD saved with a fresh Discogs value.' : 'CD saved locally.'));
-    } else {
-      const error = await res.json().catch(() => ({ error: 'Unable to save this CD.' }));
-      setStatus(error.error || 'Unable to save this CD.');
+      if (res.ok) {
+        const created = await res.json();
+        setItems((prev) => entryBeingCorrected
+          ? prev.map((item) => item.id === created.id ? created : item)
+          : [created, ...prev]);
+        setTitle('');
+        setArtist('');
+        setNotes('');
+        setMediaCondition('Very Good Plus (VG+)');
+        setEstimatedValueOverride('15.00');
+        setSearchArtist('');
+        setSearchAlbumTitle('');
+        setSearchCatalogNumber('');
+        setSearchBarcode('');
+        setResults([]);
+        setSelectedRelease(null);
+        setReleaseCatalogInfoStatus('');
+        const wasCorrection = Boolean(entryBeingCorrected);
+        setEntryBeingCorrected(null);
+        setCollectionRefresh((current) => current + 1);
+        setStatus(wasCorrection
+          ? (created.estimatedValue != null ? 'Discogs match corrected with a refreshed value.' : 'Discogs match corrected. The old valuation was cleared.')
+          : (created.estimatedValue != null ? 'CD saved with a fresh Discogs value.' : 'CD saved locally.'));
+      } else {
+        const error = await res.json().catch(() => ({ error: 'Unable to save this CD.' }));
+        setStatus(error.error || 'Unable to save this CD.');
+      }
+    } catch {
+      setStatus('Unable to save this CD. Please try again.');
+    } finally {
+      setSavingCatalog(false);
     }
   }
 
@@ -1181,7 +1190,10 @@ function App() {
   }
 
   return (
-    <div className="app-layout">
+    <div className="app-layout" aria-busy={savingCatalog} onKeyDownCapture={(event) => {
+      if (savingCatalog) { event.preventDefault(); event.stopPropagation(); }
+    }}>
+      {savingCatalog ? <div className="catalog-save-overlay" role="status" aria-live="assertive"><div><strong>Saving catalog entry…</strong><span>Please wait while the update completes.</span></div></div> : null}
       <aside className="app-nav" aria-label="Application navigation">
         <div className="app-brand">Discogs Manager</div>
         <button type="button" className={activePage === 'search' ? 'active' : ''} onClick={() => setActivePage('search')}>Search &amp; Scan</button>
@@ -1455,7 +1467,7 @@ function App() {
 
           {status ? <p className="status">{status}</p> : null}
           {entryBeingCorrected ? <div className="form-actions"><button type="button" className="secondary-button" onClick={cancelMatchCorrection}>Cancel correction</button></div> : null}
-          <div className="form-actions"><button type="submit">{entryBeingCorrected ? 'Apply corrected match' : 'Add to Catalog'}</button></div>
+          <div className="form-actions"><button type="submit" disabled={savingCatalog}>{entryBeingCorrected ? 'Apply corrected match' : 'Add to Catalog'}</button></div>
         </form>
           </>
         ) : <p className="hint">Select a release result to review it and add it to your catalog.</p>}

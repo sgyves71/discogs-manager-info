@@ -42,4 +42,31 @@ test.describe('Stage Catalog User Interface', () => {
     await page.getByRole('button', { name: 'Catalog', exact: true }).click();
     await expect(page.locator('.collection-cover img')).toHaveAttribute('src', '/api/cds/42/cover?updated=2026-07-30T19%3A00%3A00.000Z');
   });
+
+  test('Blocks Repeat Catalog Saves Until the First Save Completes', async ({ page }) => {
+    let saveRequests = 0;
+    await page.route('**/api/cds', async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      saveRequests += 1;
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      await route.fulfill({
+        contentType: 'application/json',
+        status: 201,
+        body: JSON.stringify({ id: 501, artist: 'Stage Mock Artist', title: 'Mocked CD Album', estimatedValue: 15, hasCover: false }),
+      });
+    });
+
+    await page.goto('/');
+    await page.getByPlaceholder('Artist').fill('Stage Mock Artist');
+    await page.getByPlaceholder('Album title').fill('Mocked CD Album');
+    await page.getByRole('button', { name: 'Look up', exact: true }).click();
+    await page.getByText('Mocked CD Album', { exact: true }).click();
+    await page.getByRole('button', { name: 'Edit & Add', exact: true }).click();
+    const saveButton = page.getByRole('button', { name: 'Add to Catalog', exact: true });
+    await saveButton.click();
+    await expect(page.getByRole('status')).toContainText('Saving catalog entry');
+    await expect(saveButton).toBeDisabled();
+    await expect(page.getByRole('status')).toBeHidden();
+    expect(saveRequests).toBe(1);
+  });
 });

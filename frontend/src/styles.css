@@ -29,6 +29,32 @@ body {
   min-height: 100vh;
 }
 
+.catalog-save-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: rgb(10 15 20 / 72%);
+  cursor: wait;
+}
+
+.catalog-save-overlay > div {
+  display: grid;
+  gap: 0.45rem;
+  min-width: min(22rem, 100%);
+  padding: 1.25rem 1.5rem;
+  border: 1px solid var(--accent);
+  border-radius: 0.8rem;
+  background: var(--card-bg);
+  box-shadow: 0 1.25rem 3rem rgb(0 0 0 / 45%);
+}
+
+.catalog-save-overlay span {
+  color: var(--muted);
+}
+
 .app-nav {
   display: flex;
   position: sticky;
