@@ -69,4 +69,43 @@ test.describe('Stage Catalog User Interface', () => {
     await expect(page.getByRole('status')).toBeHidden();
     expect(saveRequests).toBe(1);
   });
+
+  test('Blocks Repeat Catalog Detail Updates Until the First Save Completes', async ({ page }) => {
+    let updateRequests = 0;
+    await page.route(/\/api\/cds\?.*/, (route) => route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        items: [{
+          id: 42, artist: 'Stage Artist', title: 'Stage Album', year: 2001, country: 'US', label: 'Stage Records', format: 'CD, Album',
+          catalogNumber: 'STAGE-001', barcode: '000000000001', mediaCondition: 'Very Good Plus (VG+)', estimatedValue: 15,
+          notes: 'Synthetic Stage fixture. Safe to reset.', hasCover: false,
+        }], total: 1, page: 1, pageSize: 24,
+      }),
+    }));
+    await page.route(/\/api\/cds\/\d+\/details$/, async (route) => {
+      if (route.request().method() !== 'PATCH') return route.fallback();
+      updateRequests += 1;
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 42, artist: 'Stage Artist', title: 'Stage Album', year: 2001, country: 'US', label: 'Stage Records', format: 'CD, Album',
+          catalogNumber: 'STAGE-001', barcode: '000000000001', mediaCondition: 'Very Good Plus (VG+)', estimatedValue: 15,
+          notes: 'Synthetic Stage fixture. Safe to reset.', hasCover: false,
+        }),
+      });
+    });
+
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Catalog', exact: true }).click();
+    await page.getByText('Stage Album', { exact: true }).click();
+    await page.locator('.detail-action-menu summary').click();
+    await page.getByRole('button', { name: 'Edit catalog details', exact: true }).click();
+    const saveButton = page.getByRole('button', { name: 'Save details', exact: true });
+    await saveButton.click();
+    await expect(page.getByRole('status')).toContainText('Updating catalog details');
+    await expect(saveButton).toBeDisabled();
+    await expect(page.getByRole('status')).toBeHidden();
+    expect(updateRequests).toBe(1);
+  });
 });

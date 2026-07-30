@@ -249,7 +249,8 @@ function App() {
   const [musicLibraryPath, setMusicLibraryPath] = useState('H:\\Music\\Rips');
   const [musicLibraryStatus, setMusicLibraryStatus] = useState('');
   const [savingMusicLibrary, setSavingMusicLibrary] = useState(false);
-  const [savingCatalog, setSavingCatalog] = useState(false);
+  const [catalogSaveAction, setCatalogSaveAction] = useState<string | null>(null);
+  const catalogSaveInFlightRef = useRef(false);
   const [marketStatsBackfill, setMarketStatsBackfill] = useState<MarketStatsBackfill | null>(null);
   const [marketStatsBackfillStatus, setMarketStatsBackfillStatus] = useState('');
   const [ebayListingStats, setEbayListingStats] = useState<EBayActiveListingStats | null>(null);
@@ -679,7 +680,7 @@ function App() {
 
   async function handleSave(event: FormEvent) {
     event.preventDefault();
-    if (savingCatalog) return;
+    if (catalogSaveInFlightRef.current) return;
     if (entryBeingCorrected && !selectedRelease) {
       setStatus('Select the correct Discogs release before applying this correction.');
       return;
@@ -701,7 +702,8 @@ function App() {
       notes,
     };
 
-    setSavingCatalog(true);
+    catalogSaveInFlightRef.current = true;
+    setCatalogSaveAction('Saving catalog entry…');
     try {
       const res = await fetch(entryBeingCorrected ? `/api/cds/${entryBeingCorrected.id}` : '/api/cds', {
         method: entryBeingCorrected ? 'PATCH' : 'POST',
@@ -739,7 +741,8 @@ function App() {
     } catch {
       setStatus('Unable to save this CD. Please try again.');
     } finally {
-      setSavingCatalog(false);
+      catalogSaveInFlightRef.current = false;
+      setCatalogSaveAction(null);
     }
   }
 
@@ -1121,14 +1124,16 @@ function App() {
   }
 
   async function saveEstimatedValue() {
-    if (!viewedEntry) return;
+    if (!viewedEntry || catalogSaveInFlightRef.current) return;
     const trimmedValue = estimatedValueInput.trim();
     const estimatedValue = trimmedValue === '' ? null : Number(trimmedValue);
     if (estimatedValue !== null && (!Number.isFinite(estimatedValue) || estimatedValue < 0)) {
       setEstimatedValueStatus('Enter a non-negative dollar amount, or leave the field blank to clear it.');
       return;
     }
+    catalogSaveInFlightRef.current = true;
     setEstimatedValueStatus('Saving estimated value...');
+    setCatalogSaveAction('Updating estimated value…');
     try {
       const response = await fetch(`/api/cds/${viewedEntry.id}/estimated-value`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estimatedValue }),
@@ -1141,6 +1146,9 @@ function App() {
       setEstimatedValueStatus(updated.estimatedValue != null ? 'Estimated value saved.' : 'Estimated value cleared.');
     } catch (error) {
       setEstimatedValueStatus(error instanceof Error ? error.message : 'Unable to save the estimated value.');
+    } finally {
+      catalogSaveInFlightRef.current = false;
+      setCatalogSaveAction(null);
     }
   }
 
@@ -1164,13 +1172,15 @@ function App() {
 
   async function saveCatalogDetails(event: FormEvent) {
     event.preventDefault();
-    if (!viewedEntry || !catalogDetailsForm) return;
+    if (!viewedEntry || !catalogDetailsForm || catalogSaveInFlightRef.current) return;
     const year = catalogDetailsForm.year.trim() ? Number(catalogDetailsForm.year) : null;
     if (year != null && (!Number.isInteger(year) || year < 1000 || year > 9999)) {
       setCatalogDetailsStatus('Enter a valid four-digit year, or leave it blank.');
       return;
     }
+    catalogSaveInFlightRef.current = true;
     setCatalogDetailsStatus('Saving catalog details...');
+    setCatalogSaveAction('Updating catalog details…');
     try {
       const response = await fetch(`/api/cds/${viewedEntry.id}/details`, {
         method: 'PATCH',
@@ -1186,14 +1196,17 @@ function App() {
       setCatalogDetailsStatus('Catalog details saved.');
     } catch (error) {
       setCatalogDetailsStatus(error instanceof Error ? error.message : 'Unable to save catalog details.');
+    } finally {
+      catalogSaveInFlightRef.current = false;
+      setCatalogSaveAction(null);
     }
   }
 
   return (
-    <div className="app-layout" aria-busy={savingCatalog} onKeyDownCapture={(event) => {
-      if (savingCatalog) { event.preventDefault(); event.stopPropagation(); }
+    <div className="app-layout" aria-busy={Boolean(catalogSaveAction)} onKeyDownCapture={(event) => {
+      if (catalogSaveAction) { event.preventDefault(); event.stopPropagation(); }
     }}>
-      {savingCatalog ? <div className="catalog-save-overlay" role="status" aria-live="assertive"><div><strong>Saving catalog entry…</strong><span>Please wait while the update completes.</span></div></div> : null}
+      {catalogSaveAction ? <div className="catalog-save-overlay" role="status" aria-live="assertive"><div><strong>{catalogSaveAction}</strong><span>Please wait while the update completes.</span></div></div> : null}
       <aside className="app-nav" aria-label="Application navigation">
         <div className="app-brand">Discogs Manager</div>
         <button type="button" className={activePage === 'search' ? 'active' : ''} onClick={() => setActivePage('search')}>Search &amp; Scan</button>
@@ -1467,7 +1480,7 @@ function App() {
 
           {status ? <p className="status">{status}</p> : null}
           {entryBeingCorrected ? <div className="form-actions"><button type="button" className="secondary-button" onClick={cancelMatchCorrection}>Cancel correction</button></div> : null}
-          <div className="form-actions"><button type="submit" disabled={savingCatalog}>{entryBeingCorrected ? 'Apply corrected match' : 'Add to Catalog'}</button></div>
+          <div className="form-actions"><button type="submit" disabled={Boolean(catalogSaveAction)}>{entryBeingCorrected ? 'Apply corrected match' : 'Add to Catalog'}</button></div>
         </form>
           </>
         ) : <p className="hint">Select a release result to review it and add it to your catalog.</p>}
@@ -1594,10 +1607,10 @@ function App() {
                 <label>Media condition<select value={catalogDetailsForm.mediaCondition} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, mediaCondition: event.target.value })}><option value="">Not specified</option>{MEDIA_CONDITIONS.map((condition) => <option key={condition} value={condition}>{condition}</option>)}</select></label>
               </div>
               <label>Notes<textarea value={catalogDetailsForm.notes} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, notes: event.target.value })} /></label>
-              <div className="form-actions"><button type="submit">Save details</button><button type="button" className="secondary-button" onClick={() => { setEditingCatalogDetails(false); setCatalogDetailsForm(null); setCatalogDetailsStatus(''); }}>Cancel</button></div>
+              <div className="form-actions"><button type="submit" disabled={Boolean(catalogSaveAction)}>Save details</button><button type="button" className="secondary-button" disabled={Boolean(catalogSaveAction)} onClick={() => { setEditingCatalogDetails(false); setCatalogDetailsForm(null); setCatalogDetailsStatus(''); }}>Cancel</button></div>
               {catalogDetailsStatus ? <p className="hint">{catalogDetailsStatus}</p> : null}
             </form> : null}
-            {editingEstimatedValue ? <div className="detail-section estimated-value-editor"><strong>Update estimated value</strong><div className="inline-form"><input type="number" min="0" step="0.01" value={estimatedValueInput} onChange={(event) => setEstimatedValueInput(event.target.value)} placeholder="Leave blank to clear" aria-label="Estimated value" /><button type="button" onClick={() => void saveEstimatedValue()}>Save value</button><button type="button" className="secondary-button" onClick={() => { setEditingEstimatedValue(false); setEstimatedValueStatus(''); }}>Cancel</button></div>{estimatedValueStatus ? <p className="hint">{estimatedValueStatus}</p> : null}</div> : null}
+            {editingEstimatedValue ? <div className="detail-section estimated-value-editor"><strong>Update estimated value</strong><div className="inline-form"><input type="number" min="0" step="0.01" disabled={Boolean(catalogSaveAction)} value={estimatedValueInput} onChange={(event) => setEstimatedValueInput(event.target.value)} placeholder="Leave blank to clear" aria-label="Estimated value" /><button type="button" disabled={Boolean(catalogSaveAction)} onClick={() => void saveEstimatedValue()}>Save value</button><button type="button" className="secondary-button" disabled={Boolean(catalogSaveAction)} onClick={() => { setEditingEstimatedValue(false); setEstimatedValueStatus(''); }}>Cancel</button></div>{estimatedValueStatus ? <p className="hint">{estimatedValueStatus}</p> : null}</div> : null}
             {viewedEntry.notes ? <div className="detail-section"><strong>Your notes</strong><p>{viewedEntry.notes}</p></div> : null}
             {detailContext?.artistProfile && detailContext.descriptionSource !== 'artist' ? <div className="detail-section"><strong>Artist summary</strong><p className="artist-summary-preview"><span className="artist-summary-desktop">{formatDiscogsText(detailContext.artistProfile)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(detailContext.artistProfile))}</span></p><button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(detailContext.artistProfile!))}>Show all</button></div> : null}
             {detailContext ? <div className="detail-section"><strong>{detailContext.descriptionSource === 'release' ? 'Release notes' : detailContext.descriptionSource === 'album' ? 'Album notes' : 'Artist summary'}</strong><p className={detailContext.descriptionSource === 'artist' ? 'artist-summary-preview' : undefined}>{detailContext.description ? <>{detailContext.descriptionSource === 'artist' ? <><span className="artist-summary-desktop">{formatDiscogsText(detailContext.description)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(detailContext.description))}</span></> : formatDiscogsText(detailContext.description)}</> : 'No additional Discogs notes are available.'}</p>{detailContext.descriptionSource === 'artist' && detailContext.description ? <button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(detailContext.description!))}>Show all</button> : null}</div> : null}
