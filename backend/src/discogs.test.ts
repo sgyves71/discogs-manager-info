@@ -40,7 +40,7 @@ test('searchDiscogsReleases Returns an Empty List When the Request Times Out', a
   assert.deepEqual(results, []);
 });
 
-test('searchDiscogsReleases Includes CD and DVD Database Searches', async () => {
+test('searchDiscogsReleases Includes CD, DVD, and Box Set Database Searches', async () => {
   const requestParams: Record<string, unknown>[] = [];
 
   await searchDiscogsReleases('The Cure Disintegration', undefined, async (_url, config) => {
@@ -48,19 +48,21 @@ test('searchDiscogsReleases Includes CD and DVD Database Searches', async () => 
     return { data: { results: [] } } as never;
   });
 
-  assert.deepEqual(requestParams.map((params) => params.format).sort(), ['CD', 'DVD']);
+  assert.deepEqual(requestParams.map((params) => params.format).sort(), ['Box Set', 'CD', 'DVD']);
   assert.ok(requestParams.every((params) => params.type === 'release'));
   assert.ok(requestParams.every((params) => params.per_page === 100));
 });
 
-test('searchDiscogsReleases Combines CD and DVD Results', async () => {
+test('searchDiscogsReleases Combines CD, DVD, and Box Set Results', async () => {
   const results = await searchDiscogsReleases('Live Performance', undefined, async (_url, config) => {
     const format = (config?.params as Record<string, unknown>)?.format;
     return {
       data: {
         results: format === 'CD'
           ? [{ id: 101, title: 'Test Artist - Live Performance', format: ['CD'], year: 2001 }]
-          : [{ id: 202, title: 'Test Artist - Live Performance', format: ['DVD'], year: 2002 }],
+          : format === 'DVD'
+            ? [{ id: 202, title: 'Test Artist - Live Performance', format: ['DVD'], year: 2002 }]
+            : [{ id: 303, title: 'Test Artist - Live Performance', format: ['Box Set'], year: 2003 }],
       },
     } as never;
   });
@@ -68,6 +70,7 @@ test('searchDiscogsReleases Combines CD and DVD Results', async () => {
   assert.deepEqual(results.map((result) => ({ id: result.id, format: result.format })), [
     { id: 101, format: 'CD' },
     { id: 202, format: 'DVD' },
+    { id: 303, format: 'Box Set' },
   ]);
 });
 

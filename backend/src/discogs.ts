@@ -170,6 +170,8 @@ export function stripDiscogsArtistDisambiguator(value: string): string {
   return cleanDiscogsText(value).replace(/\s*\(\d+\)\s*$/u, '').trim();
 }
 
+const SEARCH_FORMATS = ['CD', 'DVD', 'Box Set'] as const;
+
 export async function searchDiscogsReleases(
   query: string,
   token?: string,
@@ -183,7 +185,7 @@ export async function searchDiscogsReleases(
     return [];
   }
 
-  const searchFormat = async (format: 'CD' | 'DVD'): Promise<NormalizedDiscogsResult[]> => {
+  const searchFormat = async (format: typeof SEARCH_FORMATS[number]): Promise<NormalizedDiscogsResult[]> => {
     try {
       const response = await requestDiscogs(() => requestFn('https://api.discogs.com/database/search', {
         params: {
@@ -210,8 +212,8 @@ export async function searchDiscogsReleases(
     }
   };
 
-  const [cdResults, dvdResults] = await Promise.all([searchFormat('CD'), searchFormat('DVD')]);
-  return Array.from(new Map([...cdResults, ...dvdResults].map((result) => [result.id, result])).values());
+  const formatResults = await Promise.all(SEARCH_FORMATS.map(searchFormat));
+  return Array.from(new Map(formatResults.flat().map((result) => [result.id, result])).values());
 }
 
 export async function getDiscogsReleaseCover(
