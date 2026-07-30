@@ -79,4 +79,38 @@ test.describe('Stage Discogs Mock', () => {
     await expect(page.getByPlaceholder('Barcode')).toHaveValue('');
     await expect(page.getByText('Mocked CD Album', { exact: true })).toBeHidden();
   });
+
+  test('Locks Interaction While Selected Release Data Loads', async ({ page }) => {
+    await page.route(/\/api\/discogs\/releases\/900101\/catalog-info$/, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ label: 'Mock Records', catalogNumber: 'MOCK-CD-001', barcode: '0123456789012' }) });
+    });
+
+    await page.goto('/');
+    await page.getByPlaceholder('Artist').fill('Stage Mock Artist');
+    await page.getByPlaceholder('Album Title').fill('Mocked CD Album');
+    await page.getByRole('button', { name: 'Look Up', exact: true }).click();
+    await page.getByText('Mocked CD Album', { exact: true }).click();
+
+    await expect(page.getByRole('status')).toContainText('Loading Selected Release');
+    await expect(page.locator('.app-layout')).toHaveAttribute('aria-busy', 'true');
+  });
+
+  test('Skips eBay Values When the Search Toggle Is Off', async ({ page }) => {
+    let ebayRequests = 0;
+    await page.route('**/api/ebay/active-listing-stats?**', async (route) => {
+      ebayRequests += 1;
+      await route.fallback();
+    });
+
+    await page.goto('/');
+    await page.getByLabel('Include Current eBay Auction Values').uncheck();
+    await page.getByPlaceholder('Artist').fill('Stage Mock Artist');
+    await page.getByPlaceholder('Album Title').fill('Mocked CD Album');
+    await page.getByRole('button', { name: 'Look Up', exact: true }).click();
+    await page.getByText('Mocked CD Album', { exact: true }).click();
+    await expect(page.locator('.result-card.selected')).toContainText('Mock Records');
+    expect(ebayRequests).toBe(0);
+    await expect(page.getByText('eBay Active Listings', { exact: true })).toBeHidden();
+  });
 });

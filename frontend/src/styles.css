@@ -803,7 +803,22 @@ button:disabled {
 
 .search-actions {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.ebay-search-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.ebay-search-toggle input {
+  width: auto;
+  margin: 0;
 }
 
 .search-input-grid {

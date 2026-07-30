@@ -255,6 +255,7 @@ function App() {
   const [marketStatsBackfillStatus, setMarketStatsBackfillStatus] = useState('');
   const [ebayListingStats, setEbayListingStats] = useState<EBayActiveListingStats | null>(null);
   const [ebayListingStatus, setEbayListingStatus] = useState('');
+  const [includeEbayAuctionValues, setIncludeEbayAuctionValues] = useState(true);
   const [releaseContext, setReleaseContext] = useState<DiscogsReleaseContext | null>(null);
   const [releaseContextStatus, setReleaseContextStatus] = useState('');
   const [expandedArtistSummary, setExpandedArtistSummary] = useState<string | null>(null);
@@ -527,7 +528,7 @@ function App() {
   }, [viewedEntry]);
 
   useEffect(() => {
-    if (!selectedRelease) {
+    if (!selectedRelease || !includeEbayAuctionValues) {
       setEbayListingStats(null);
       setEbayListingStatus('');
       return;
@@ -557,7 +558,7 @@ function App() {
       });
 
     return () => { cancelled = true; };
-  }, [selectedRelease]);
+  }, [includeEbayAuctionValues, selectedRelease]);
 
   async function handleSearch(scannedBarcode?: string) {
     const searchArtistValue = searchArtist.trim();
@@ -1230,11 +1231,18 @@ function App() {
     }
   }
 
+  const selectedReleaseLoading = Boolean(selectedRelease && (
+    releaseCatalogInfoStatus.startsWith('Loading')
+    || releaseContextStatus.startsWith('Loading')
+    || (includeEbayAuctionValues && ebayListingStatus.startsWith('Loading'))
+  ));
+  const uiLockMessage = catalogSaveAction || (selectedReleaseLoading ? 'Loading Selected Release…' : null);
+
   return (
-    <div className="app-layout" aria-busy={Boolean(catalogSaveAction)} onKeyDownCapture={(event) => {
-      if (catalogSaveAction) { event.preventDefault(); event.stopPropagation(); }
+    <div className="app-layout" aria-busy={Boolean(uiLockMessage)} onKeyDownCapture={(event) => {
+      if (uiLockMessage) { event.preventDefault(); event.stopPropagation(); }
     }}>
-      {catalogSaveAction ? <div className="catalog-save-overlay" role="status" aria-live="assertive"><div><strong>{catalogSaveAction}</strong><span>Please wait while the update completes.</span></div></div> : null}
+      {uiLockMessage ? <div className="catalog-save-overlay" role="status" aria-live="assertive"><div><strong>{uiLockMessage}</strong><span>Please wait while the update completes.</span></div></div> : null}
       <aside className="app-nav" aria-label="Application navigation">
         <div className="app-brand">Discogs Manager</div>
         <button type="button" className={activePage === 'search' ? 'active' : ''} onClick={() => setActivePage('search')}>Search &amp; Scan</button>
@@ -1331,6 +1339,7 @@ function App() {
           <div className="search-actions">
             <button type="submit" disabled={loading || (!searchArtist.trim() && !searchAlbumTitle.trim() && !searchCatalogNumber.trim() && !searchBarcode.trim())}>{loading ? 'Searching...' : 'Look Up'}</button>
             <button type="button" className="secondary-button" onClick={clearSearch} disabled={loading}>Clear</button>
+            <label className="ebay-search-toggle"><input type="checkbox" checked={includeEbayAuctionValues} onChange={(event) => setIncludeEbayAuctionValues(event.target.checked)} /> Include Current eBay Auction Values</label>
           </div>
         </form>
 
