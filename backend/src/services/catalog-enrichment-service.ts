@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { PrismaClient } from '@prisma/client';
 import { getDiscogsReleaseCatalogInfo, getDiscogsReleaseContext, getDiscogsReleaseCover } from '../discogs.js';
-import { fetchDiscogsMarketStats } from '../discogs-market-stats.js';
+import { fetchDiscogsMarketStats, retainKnownDiscogsMarketStats } from '../discogs-market-stats.js';
 
 export type BackfillState = {
   status: 'idle' | 'running' | 'complete' | 'failed';
@@ -106,7 +106,21 @@ export class CatalogEnrichmentService {
 
   async refreshMarketStats(cdEntryId: number, discogsId: number): Promise<boolean> {
     if (this.isStageEnvironment) return false;
-    const marketStats = await fetchDiscogsMarketStats(discogsId);
+    const [currentMarketStats, existing] = await Promise.all([
+      fetchDiscogsMarketStats(discogsId),
+      this.prisma.cdEntry.findUnique({
+        where: { id: cdEntryId },
+        select: { discogsLastSoldAt: true, discogsMarketLow: true, discogsMarketMedian: true, discogsMarketHigh: true, discogsMarketCurrency: true },
+      }),
+    ]);
+    if (!existing) return false;
+    const marketStats = retainKnownDiscogsMarketStats({
+      lastSoldAt: existing.discogsLastSoldAt,
+      low: existing.discogsMarketLow,
+      median: existing.discogsMarketMedian,
+      high: existing.discogsMarketHigh,
+      currency: existing.discogsMarketCurrency,
+    }, currentMarketStats);
     await this.prisma.cdEntry.update({
       where: { id: cdEntryId },
       data: {
@@ -118,7 +132,7 @@ export class CatalogEnrichmentService {
         discogsMarketStatsCheckedAt: new Date(),
       },
     });
-    return Boolean(marketStats.lastSoldAt || marketStats.low != null || marketStats.median != null || marketStats.high != null);
+    return Boolean(currentMarketStats.lastSoldAt || currentMarketStats.low != null || currentMarketStats.median != null || currentMarketStats.high != null);
   }
 
   private reset(state: BackfillState): void {

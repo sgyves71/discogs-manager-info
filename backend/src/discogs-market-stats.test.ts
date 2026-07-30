@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseDiscogsMarketStats } from './discogs-market-stats';
+import { parseDiscogsMarketStats, retainKnownDiscogsMarketStats } from './discogs-market-stats';
 
 test('parseDiscogsMarketStats Extracts Release Statistics by Label', () => {
   const result = parseDiscogsMarketStats(`
@@ -18,5 +18,17 @@ test('parseDiscogsMarketStats Extracts Release Statistics by Label', () => {
 test('parseDiscogsMarketStats Returns Nulls When Statistics Are Unavailable', () => {
   assert.deepEqual(parseDiscogsMarketStats('<main>No market statistics</main>'), {
     lastSoldAt: null, low: null, median: null, high: null, currency: null,
+  });
+});
+
+test('retainKnownDiscogsMarketStats Preserves Last Known Values When a Page Has No Statistics', () => {
+  const result = retainKnownDiscogsMarketStats({
+    lastSoldAt: new Date('2025-04-03'), low: 10, median: 20, high: 30, currency: 'USD',
+  }, {
+    lastSoldAt: null, low: null, median: null, high: null, currency: null,
+  });
+
+  assert.deepEqual(result, {
+    lastSoldAt: new Date('2025-04-03'), low: 10, median: 20, high: 30, currency: 'USD',
   });
 });

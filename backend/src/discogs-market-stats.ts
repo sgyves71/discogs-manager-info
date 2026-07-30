@@ -14,6 +14,16 @@ export type DiscogsMarketStats = {
   currency: string | null;
 };
 
+export function retainKnownDiscogsMarketStats(previous: DiscogsMarketStats, current: DiscogsMarketStats): DiscogsMarketStats {
+  return {
+    lastSoldAt: current.lastSoldAt ?? previous.lastSoldAt,
+    low: current.low ?? previous.low,
+    median: current.median ?? previous.median,
+    high: current.high ?? previous.high,
+    currency: current.currency ?? previous.currency,
+  };
+}
+
 type ParsedPrice = { value: number | null; currency: string | null };
 
 function decodeHtml(value: string): string {
