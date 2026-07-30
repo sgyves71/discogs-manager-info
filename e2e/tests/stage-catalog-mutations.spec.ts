@@ -74,6 +74,12 @@ test.describe('Stage Catalog Mutations', () => {
     expect(await response.json()).toMatchObject({ error: 'This exact Discogs release is already in your catalog.' });
   });
 
+  test('Rejects an Incomplete Catalog Entry', async ({ request }) => {
+    const response = await request.post(`${apiUrl}/api/cds`, { data: { title: 'Missing Artist' } });
+    expect(response.status()).toBe(400);
+    expect(await response.json()).toMatchObject({ error: 'Title and artist are required' });
+  });
+
   test('Removes the Catalog Entry', async ({ request }) => {
     const deletion = await request.delete(`${apiUrl}/api/cds/${entryId}`);
     expect(deletion.status()).toBe(204);
