@@ -206,6 +206,8 @@ function App() {
   const [personalMusicStatus, setPersonalMusicStatus] = useState('');
   const [localAudioPlayer, setLocalAudioPlayer] = useState<LocalAudioPlayer | null>(null);
   const [personalAlbumFolders, setPersonalAlbumFolders] = useState<PersonalAlbumFolder[] | null>(null);
+  const [personalAlbumFolderInput, setPersonalAlbumFolderInput] = useState('');
+  const [personalAlbumMappingStatus, setPersonalAlbumMappingStatus] = useState('');
   const [musicLibrary, setMusicLibrary] = useState<MusicLibraryInfo | null>(null);
   const [musicLibraryPath, setMusicLibraryPath] = useState('H:\\Music\\Rips');
   const [musicLibraryStatus, setMusicLibraryStatus] = useState('');
@@ -359,6 +361,8 @@ function App() {
       setPersonalTrackMatches([]);
       setPersonalMusicStatus('');
       setPersonalAlbumFolders(null);
+      setPersonalAlbumFolderInput('');
+      setPersonalAlbumMappingStatus('');
       return;
     }
 
@@ -378,6 +382,9 @@ function App() {
     setShowDetailImages(false);
     setDetailTracks([]);
     setDetailTracksStatus('');
+    setPersonalAlbumFolders(null);
+    setPersonalAlbumFolderInput(viewedEntry.personalAlbumFolderPath || '');
+    setPersonalAlbumMappingStatus('');
     setShowTracklist(false);
     setYouTubeStatus('');
     setYouTubeCandidates(null);
@@ -936,6 +943,24 @@ function App() {
     }
   }
 
+  async function savePersonalAlbumFolder(folderPath: string | null) {
+    if (!viewedEntry) return;
+    setPersonalAlbumMappingStatus(folderPath ? 'Saving personal album folder...' : 'Clearing personal album folder...');
+    try {
+      const response = await fetch(`/api/cds/${viewedEntry.id}/personal-album-folder`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ folderPath }),
+      });
+      const updated = await response.json() as CdEntry & { error?: string };
+      if (!response.ok) throw new Error(updated.error || 'Unable to save the personal album folder.');
+      setViewedEntry(updated);
+      setItems((current) => current.map((item) => item.id === updated.id ? { ...item, personalAlbumFolderPath: updated.personalAlbumFolderPath, personalAlbumFolderMappedAt: updated.personalAlbumFolderMappedAt } : item));
+      setPersonalAlbumFolderInput(updated.personalAlbumFolderPath || '');
+      setPersonalAlbumMappingStatus(updated.personalAlbumFolderPath ? 'Personal album folder saved. Playback will use it first.' : 'Personal album folder mapping cleared.');
+    } catch (error) {
+      setPersonalAlbumMappingStatus(error instanceof Error ? error.message : 'Unable to save the personal album folder.');
+    }
+  }
+
   function beginEstimatedValueEdit() {
     if (!viewedEntry) return;
     setEstimatedValueInput(viewedEntry.estimatedValue != null ? String(viewedEntry.estimatedValue) : '');
@@ -1397,9 +1422,16 @@ function App() {
             </form> : null}
             {editingEstimatedValue ? <div className="detail-section estimated-value-editor"><strong>Update estimated value</strong><div className="inline-form"><input type="number" min="0" step="0.01" value={estimatedValueInput} onChange={(event) => setEstimatedValueInput(event.target.value)} placeholder="Leave blank to clear" aria-label="Estimated value" /><button type="button" onClick={() => void saveEstimatedValue()}>Save value</button><button type="button" className="secondary-button" onClick={() => { setEditingEstimatedValue(false); setEstimatedValueStatus(''); }}>Cancel</button></div>{estimatedValueStatus ? <p className="hint">{estimatedValueStatus}</p> : null}</div> : null}
             {viewedEntry.notes ? <div className="detail-section"><strong>Your notes</strong><p>{viewedEntry.notes}</p></div> : null}
+            <div className="detail-section personal-album-mapping">
+              <strong>Personal album folder</strong>
+              <p>{viewedEntry.personalAlbumFolderPath ? 'Saved folder is preferred for local track playback.' : 'Optional fallback when automatic local matching cannot identify the correct album.'}</p>
+              {viewedEntry.personalAlbumFolderPath ? <code>{viewedEntry.personalAlbumFolderPath}</code> : null}
+              <div className="inline-form"><input value={personalAlbumFolderInput} onChange={(event) => setPersonalAlbumFolderInput(event.target.value)} placeholder="Paste an album folder path" aria-label="Personal album folder path" /><button type="button" disabled={!personalAlbumFolderInput.trim()} onClick={() => void savePersonalAlbumFolder(personalAlbumFolderInput.trim())}>Save folder</button>{viewedEntry.personalAlbumFolderPath ? <button type="button" className="secondary-button" onClick={() => void savePersonalAlbumFolder(null)}>Clear mapping</button> : null}</div>
+              {personalAlbumMappingStatus ? <p className="hint">{personalAlbumMappingStatus}</p> : null}
+            </div>
             {detailContext?.artistProfile && detailContext.descriptionSource !== 'artist' ? <div className="detail-section"><strong>Artist summary</strong><p className="artist-summary-preview"><span className="artist-summary-desktop">{formatDiscogsText(detailContext.artistProfile)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(detailContext.artistProfile))}</span></p><button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(detailContext.artistProfile!))}>Show all</button></div> : null}
             {detailContext ? <div className="detail-section"><strong>{detailContext.descriptionSource === 'release' ? 'Release notes' : detailContext.descriptionSource === 'album' ? 'Album notes' : 'Artist summary'}</strong><p className={detailContext.descriptionSource === 'artist' ? 'artist-summary-preview' : undefined}>{detailContext.description ? <>{detailContext.descriptionSource === 'artist' ? <><span className="artist-summary-desktop">{formatDiscogsText(detailContext.description)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(detailContext.description))}</span></> : formatDiscogsText(detailContext.description)}</> : 'No additional Discogs notes are available.'}</p>{detailContext.descriptionSource === 'artist' && detailContext.description ? <button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(detailContext.description!))}>Show all</button> : null}</div> : null}
-            {personalAlbumFolders ? <div className="detail-section album-folder-results"><div className="album-folder-results-header"><strong>Personal album folder{personalAlbumFolders.length === 1 ? '' : 's'}</strong><button type="button" className="secondary-button" onClick={() => setPersonalAlbumFolders(null)}>Close</button></div>{personalAlbumFolders.map((folder) => <div className="album-folder-result" key={folder.folderPath}><strong>{folder.album}</strong><span>{folder.trackCount} indexed tracks · {folder.matchType === 'exact' ? 'exact album match' : 'close album match'}</span><code>{folder.folderPath}</code><button type="button" className="secondary-button" onClick={() => { void navigator.clipboard?.writeText(folder.folderPath); setPersonalMusicStatus('Album folder path copied.'); }}>Copy path</button></div>)}</div> : null}
+            {personalAlbumFolders ? <div className="detail-section album-folder-results"><div className="album-folder-results-header"><strong>Personal album folder{personalAlbumFolders.length === 1 ? '' : 's'}</strong><button type="button" className="secondary-button" onClick={() => setPersonalAlbumFolders(null)}>Close</button></div>{personalAlbumFolders.map((folder) => <div className="album-folder-result" key={folder.folderPath}><strong>{folder.album}</strong><span>{folder.trackCount} indexed tracks · {folder.matchType === 'exact' ? 'exact album match' : 'close album match'}</span><code>{folder.folderPath}</code><div className="form-actions"><button type="button" onClick={() => void savePersonalAlbumFolder(folder.folderPath)}>Use this folder</button><button type="button" className="secondary-button" onClick={() => { void navigator.clipboard?.writeText(folder.folderPath); setPersonalMusicStatus('Album folder path copied.'); }}>Copy path</button></div></div>)}</div> : null}
             {detailEbayStats?.sampledListingCount ? <div className={`detail-section ebay-listing-results ${detailEbayStats.searchMethod}`}><strong>eBay active listings</strong><p>{detailEbayStats.listingCount} listings found • {detailEbayStats.searchMethod === 'catalogNumber' ? 'catalog number match' : 'artist/title CD search'} • Low / average / high: {detailEbayStats.currency || '$'} {detailEbayStats.lowestPrice?.toFixed(2)} / {detailEbayStats.averagePrice?.toFixed(2)} / {detailEbayStats.highestPrice?.toFixed(2)}</p></div> : null}
             {showDetailImages ? (
               <div className="detail-section release-image-gallery">

@@ -197,15 +197,18 @@ app.get('/api/music-library/matches/find', async (req, res) => {
     res.status(404).json({ error: library ? 'Catalog entry not found.' : 'Choose and scan a music library folder first.' });
     return;
   }
-  const normalizedTitle = normalizeMusicText(trackTitle);
-  const artistCandidates = await findArtistLibraryTracks(library.id, entry.artist);
+  const mappedFolderPath = entry.personalAlbumFolderPath ? path.resolve(entry.personalAlbumFolderPath) : null;
+  const mappedCandidates = mappedFolderPath
+    ? await prisma.musicLibraryTrack.findMany({ where: { libraryId: library.id, filePath: { startsWith: `${mappedFolderPath}${path.sep}` } }, orderBy: [{ discNumber: 'asc' }, { trackNumber: 'asc' }] })
+    : [];
+  const artistCandidates = mappedCandidates.length ? mappedCandidates : await findArtistLibraryTracks(library.id, entry.artist);
   const rankedCandidates = artistCandidates
     .map((candidate) => {
       const albumScore = scoreMusicTitleMatch(entry.title, candidate.album);
       const titleScore = scoreMusicTitleMatch(trackTitle, candidate.title);
       return { candidate, albumScore, titleScore, score: (albumScore * 0.6) + (titleScore * 0.4) };
     })
-    .filter((candidate) => candidate.albumScore >= 0.55 && candidate.titleScore >= 0.75)
+    .filter((candidate) => (mappedCandidates.length ? candidate.titleScore >= 0.75 : candidate.albumScore >= 0.55 && candidate.titleScore >= 0.75))
     .sort((left, right) => right.score - left.score || right.albumScore - left.albumScore || right.titleScore - left.titleScore);
   const libraryTrack = rankedCandidates[0]?.candidate ?? null;
   if (!libraryTrack) {
@@ -252,7 +255,40 @@ app.get('/api/music-library/albums/find', async (req, res) => {
     .map(([folderPath, details]) => ({ folderPath, album: details.album, trackCount: details.trackCount, matchType: details.score >= 0.99 ? 'exact' : 'close', score: details.score }))
     .sort((left, right) => right.score - left.score || right.trackCount - left.trackCount || left.album.localeCompare(right.album));
   const trackCount = await prisma.musicLibraryTrack.count({ where: { libraryId: library.id } });
-  res.json({ status: albums.length ? 'found' : (trackCount ? 'notFound' : 'unindexed'), albums });
+  res.json({ status: albums.length ? 'found' : (trackCount ? 'notFound' : 'unindexed'), albums, mappedFolderPath: entry.personalAlbumFolderPath });
+});
+
+app.patch('/api/cds/:id/personal-album-folder', async (req, res) => {
+  const entryId = Number(req.params.id);
+  const folderPath = typeof req.body?.folderPath === 'string' ? req.body.folderPath.trim() : null;
+  if (!Number.isInteger(entryId) || entryId <= 0 || (req.body?.folderPath != null && !folderPath)) {
+    res.status(400).json({ error: 'Provide a valid album folder path, or null to clear the mapping.' });
+    return;
+  }
+  const library = await getMusicLibrary();
+  if (!library) {
+    res.status(404).json({ error: 'Choose and scan a music library folder first.' });
+    return;
+  }
+  let resolvedFolderPath: string | null = null;
+  if (folderPath) {
+    resolvedFolderPath = path.resolve(folderPath);
+    if (!pathIsWithinRoot(library.rootPath, resolvedFolderPath) || !await isDirectory(resolvedFolderPath)) {
+      res.status(400).json({ error: 'Choose an existing album folder inside the configured music library.' });
+      return;
+    }
+    const indexedTracks = await prisma.musicLibraryTrack.count({ where: { libraryId: library.id, filePath: { startsWith: `${resolvedFolderPath}${path.sep}` } } });
+    if (!indexedTracks) {
+      res.status(400).json({ error: 'That folder has no indexed audio tracks. Scan the music library first.' });
+      return;
+    }
+  }
+  try {
+    const entry = await prisma.cdEntry.update({ where: { id: entryId }, data: { personalAlbumFolderPath: resolvedFolderPath, personalAlbumFolderMappedAt: resolvedFolderPath ? new Date() : null } });
+    res.json(entry);
+  } catch {
+    res.status(404).json({ error: 'Catalog entry not found.' });
+  }
 });
 
 app.get('/api/cds/:id/personal-track-matches', async (req, res) => {

@@ -36,6 +36,8 @@ model CdEntry {
   discogsNotes                    String?
   discogsNotesSource              String?
   discogsContextUpdatedAt         DateTime?
+  personalAlbumFolderPath         String?
+  personalAlbumFolderMappedAt     DateTime?
   youTubeTrackMatches             YouTubeTrackMatch[]
   personalTrackMatches            PersonalTrackMatch[]
   createdAt        DateTime @default(now())

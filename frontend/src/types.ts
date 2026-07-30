@@ -21,4 +21,6 @@ export type CdEntry = {
   discogsNotes?: string | null;
   discogsNotesSource?: 'release' | 'album' | 'artist' | null;
   discogsContextUpdatedAt?: string | null;
+  personalAlbumFolderPath?: string | null;
+  personalAlbumFolderMappedAt?: string | null;
 };
