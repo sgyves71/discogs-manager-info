@@ -40,42 +40,60 @@ test('searchDiscogsReleases Returns an Empty List When the Request Times Out', a
   assert.deepEqual(results, []);
 });
 
-test('searchDiscogsReleases Limits Database Searches to CDs', async () => {
-  let requestParams: Record<string, unknown> | undefined;
+test('searchDiscogsReleases Includes CD and DVD Database Searches', async () => {
+  const requestParams: Record<string, unknown>[] = [];
 
   await searchDiscogsReleases('The Cure Disintegration', undefined, async (_url, config) => {
-    requestParams = config?.params as Record<string, unknown>;
+    requestParams.push(config?.params as Record<string, unknown>);
     return { data: { results: [] } } as never;
   });
 
-  assert.equal(requestParams?.type, 'release');
-  assert.equal(requestParams?.format, 'CD');
-  assert.equal(requestParams?.per_page, 100);
+  assert.deepEqual(requestParams.map((params) => params.format).sort(), ['CD', 'DVD']);
+  assert.ok(requestParams.every((params) => params.type === 'release'));
+  assert.ok(requestParams.every((params) => params.per_page === 100));
+});
+
+test('searchDiscogsReleases Combines CD and DVD Results', async () => {
+  const results = await searchDiscogsReleases('Live Performance', undefined, async (_url, config) => {
+    const format = (config?.params as Record<string, unknown>)?.format;
+    return {
+      data: {
+        results: format === 'CD'
+          ? [{ id: 101, title: 'Test Artist - Live Performance', format: ['CD'], year: 2001 }]
+          : [{ id: 202, title: 'Test Artist - Live Performance', format: ['DVD'], year: 2002 }],
+      },
+    } as never;
+  });
+
+  assert.deepEqual(results.map((result) => ({ id: result.id, format: result.format })), [
+    { id: 101, format: 'CD' },
+    { id: 202, format: 'DVD' },
+  ]);
 });
 
 test('searchDiscogsReleases Passes Artist and Album Title as Dedicated Filters', async () => {
-  let requestParams: Record<string, unknown> | undefined;
+  const requestParams: Record<string, unknown>[] = [];
 
   await searchDiscogsReleases('', undefined, async (_url, config) => {
-    requestParams = config?.params as Record<string, unknown>;
+    requestParams.push(config?.params as Record<string, unknown>);
     return { data: { results: [] } } as never;
   }, 'Riot', 'Thundersteel');
 
-  assert.equal(requestParams?.artist, 'Riot');
-  assert.equal(requestParams?.release_title, 'Thundersteel');
-  assert.equal(requestParams?.q, undefined);
+  assert.ok(requestParams.every((params) => params.artist === 'Riot'));
+  assert.ok(requestParams.every((params) => params.release_title === 'Thundersteel'));
+  assert.ok(requestParams.every((params) => params.q === undefined));
 });
 
 test('searchDiscogsReleases Passes Catalog Number and Barcode Filters', async () => {
-  let requestParams: Record<string, unknown> | undefined;
+  const requestParams: Record<string, unknown>[] = [];
 
   await searchDiscogsReleases('', undefined, async (_url, config) => {
-    requestParams = config?.params as Record<string, unknown>;
+    requestParams.push(config?.params as Record<string, unknown>);
     return { data: { results: [] } } as never;
   }, undefined, undefined, '3984-15417-2', '039841541724');
 
-  assert.equal(requestParams?.catno, '3984-15417-2');
-  assert.equal(requestParams?.barcode, '039841541724');
+  assert.ok(requestParams.every((params) => params.catno === '3984-15417-2'));
+  assert.ok(requestParams.every((params) => params.barcode === '039841541724'));
 });
 
 test('getDiscogsPriceSuggestion Returns the Selected Condition Value', async () => {
