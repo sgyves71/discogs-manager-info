@@ -23,7 +23,7 @@ test.describe('Stage Catalog User Interface', () => {
       expect(dialog.message()).toContain('may take around 30 minutes');
       void dialog.dismiss();
     });
-    await page.getByRole('button', { name: 'Update valuations', exact: true }).click();
+    await page.getByRole('button', { name: 'Update Valuations', exact: true }).click();
   });
 
   test('Versions a Catalog Cover URL After a Cover Update', async ({ page }) => {
@@ -79,7 +79,7 @@ test.describe('Stage Catalog User Interface', () => {
     await page.goto('/');
     await page.getByPlaceholder('Artist').fill('Stage Mock Artist');
     await page.getByPlaceholder('Album title').fill('Mocked CD Album');
-    await page.getByRole('button', { name: 'Look up', exact: true }).click();
+    await page.getByRole('button', { name: 'Look Up', exact: true }).click();
     await page.getByText('Mocked CD Album', { exact: true }).click();
     await page.getByRole('button', { name: 'Edit & Add', exact: true }).click();
     const saveButton = page.getByRole('button', { name: 'Add to Catalog', exact: true });
@@ -120,8 +120,8 @@ test.describe('Stage Catalog User Interface', () => {
     await page.getByRole('button', { name: 'Catalog', exact: true }).click();
     await page.getByText('Stage Album', { exact: true }).click();
     await page.locator('.detail-action-menu summary').click();
-    await page.getByRole('button', { name: 'Edit catalog details', exact: true }).click();
-    const saveButton = page.getByRole('button', { name: 'Save details', exact: true });
+    await page.getByRole('button', { name: 'Edit Catalog Details', exact: true }).click();
+    const saveButton = page.getByRole('button', { name: 'Save Details', exact: true });
     await saveButton.click();
     await expect(page.getByRole('status')).toContainText('Updating catalog details');
     await expect(saveButton).toBeDisabled();

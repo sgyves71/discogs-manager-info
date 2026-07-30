@@ -50,10 +50,10 @@ export function CatalogPage({
                 <details className="row-menu">
                   <summary aria-label={`Actions for ${item.artist} — ${item.title}`}>•••</summary>
                   <div className="row-menu-items">
-                    <button type="button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); if (!hasOpenDetail) onOpenDetail(item); }}>View details</button>
-                    <button type="button" className="secondary-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); onChangeAssociation(item); }}>Change association</button>
+                    <button type="button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); if (!hasOpenDetail) onOpenDetail(item); }}>View Details</button>
+                    <button type="button" className="secondary-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); onChangeAssociation(item); }}>Change Association</button>
                     <button type="button" className="secondary-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); onSearchEbay(item); }}>Search eBay</button>
-                    <button type="button" className="danger-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); onRemove(item); }}>Remove entry</button>
+                    <button type="button" className="danger-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); onRemove(item); }}>Remove Entry</button>
                   </div>
                 </details>
               </div>

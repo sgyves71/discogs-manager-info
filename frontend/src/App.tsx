@@ -1251,8 +1251,8 @@ function App() {
             <label htmlFor="music-library-path">Library folder</label>
             <input id="music-library-path" value={musicLibraryPath} onChange={(event) => setMusicLibraryPath(event.target.value)} placeholder="H:\\Music\\Rips" />
             <div className="form-actions">
-              <button type="button" onClick={() => void saveMusicLibrary()} disabled={savingMusicLibrary || !musicLibraryPath.trim()}>{savingMusicLibrary ? 'Saving...' : 'Save folder'}</button>
-              <button type="button" className="secondary-button" onClick={() => void scanMusicLibrary()} disabled={!musicLibrary?.rootPath || musicLibrary.scan.status === 'scanning'}>{musicLibrary?.scan.status === 'scanning' ? 'Scanning...' : 'Scan library'}</button>
+              <button type="button" onClick={() => void saveMusicLibrary()} disabled={savingMusicLibrary || !musicLibraryPath.trim()}>{savingMusicLibrary ? 'Saving...' : 'Save Folder'}</button>
+              <button type="button" className="secondary-button" onClick={() => void scanMusicLibrary()} disabled={!musicLibrary?.rootPath || musicLibrary.scan.status === 'scanning'}>{musicLibrary?.scan.status === 'scanning' ? 'Scanning...' : 'Scan Library'}</button>
             </div>
             {musicLibrary?.rootPath ? <div className="music-library-summary"><strong>Current folder:</strong> {musicLibrary.rootPath}<br /><strong>Indexed tracks:</strong> {musicLibrary.trackCount.toLocaleString()}{musicLibrary.lastScannedAt ? <> · last scan {new Date(musicLibrary.lastScannedAt).toLocaleString()}</> : null}</div> : <p className="hint">Save the folder first, then run the initial scan.</p>}
             {musicLibrary?.scan.status === 'scanning' ? <p className="hint">Scanning: {musicLibrary.scan.scannedFiles.toLocaleString()} files checked · {musicLibrary.scan.indexedFiles.toLocaleString()} indexed · {musicLibrary.scan.skippedFiles.toLocaleString()} skipped</p> : null}
@@ -1263,7 +1263,7 @@ function App() {
             <h2>Catalog valuations</h2>
             <p>Refresh Discogs Last Sold, Low, Median, and High values for every catalog entry with a Discogs release. The process runs in the background at a respectful pace.</p>
             <div className="form-actions">
-              <button type="button" onClick={() => void startMarketStatsBackfill()} disabled={marketStatsBackfill?.status === 'running'}>{marketStatsBackfill?.status === 'running' ? 'Updating valuations...' : 'Update valuations'}</button>
+              <button type="button" onClick={() => void startMarketStatsBackfill()} disabled={marketStatsBackfill?.status === 'running'}>{marketStatsBackfill?.status === 'running' ? 'Updating Valuations...' : 'Update Valuations'}</button>
             </div>
             {marketStatsBackfill?.status === 'running' ? <p className="hint">Progress: {marketStatsBackfill.processed.toLocaleString()} / {marketStatsBackfill.total.toLocaleString()} releases checked Â· {marketStatsBackfill.stored ?? 0} with market data Â· {marketStatsBackfill.skipped.toLocaleString()} unavailable</p> : null}
             {marketStatsBackfill?.status === 'complete' ? <p className="hint">Last update complete: {marketStatsBackfill.processed.toLocaleString()} releases checked Â· {marketStatsBackfill.stored ?? 0} with market data Â· {marketStatsBackfill.skipped.toLocaleString()} unavailable.</p> : null}
@@ -1329,7 +1329,7 @@ function App() {
             />
           </div>
           <div className="search-actions">
-            <button type="submit" disabled={loading || (!searchArtist.trim() && !searchAlbumTitle.trim() && !searchCatalogNumber.trim() && !searchBarcode.trim())}>{loading ? 'Searching...' : 'Look up'}</button>
+            <button type="submit" disabled={loading || (!searchArtist.trim() && !searchAlbumTitle.trim() && !searchCatalogNumber.trim() && !searchBarcode.trim())}>{loading ? 'Searching...' : 'Look Up'}</button>
             <button type="button" className="secondary-button" onClick={clearSearch} disabled={loading}>Clear</button>
           </div>
         </form>
@@ -1339,7 +1339,7 @@ function App() {
           <h3>Barcode scanner</h3>
           <p className="hint">Use your phone camera to fill the barcode search field automatically.</p>
           <button type="button" onClick={() => { setScannerStatus('Opening camera...'); setScannerOpen(true); }}>
-            Scan barcode
+            Scan Barcode
           </button>
         </section>
 
@@ -1347,7 +1347,7 @@ function App() {
           <div className="scanner-dialog" role="dialog" aria-modal="true" aria-label="Barcode scanner">
             <video ref={scannerVideoRef} className="scanner-video" muted playsInline />
             <p>{scannerStatus}</p>
-            <button type="button" onClick={() => setScannerOpen(false)}>Cancel scan</button>
+            <button type="button" onClick={() => setScannerOpen(false)}>Cancel Scan</button>
           </div>
         )}
 
@@ -1441,7 +1441,7 @@ function App() {
                               <div>
                                 <strong>Artist summary</strong>
                                 <p className="artist-summary-preview"><span className="artist-summary-desktop">{formatDiscogsText(releaseContext.artistProfile)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(releaseContext.artistProfile))}</span></p>
-                                <button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(releaseContext.artistProfile!))}>Show all</button>
+                                <button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(releaseContext.artistProfile!))}>Show All</button>
                               </div>
                             )}
                             <div>
@@ -1455,7 +1455,7 @@ function App() {
                                       : 'Discogs information'}
                               </strong>
                               <p className={releaseContext.descriptionSource === 'artist' ? 'artist-summary-preview' : undefined}>{releaseContext.description ? <>{releaseContext.descriptionSource === 'artist' ? <><span className="artist-summary-desktop">{formatDiscogsText(releaseContext.description)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(releaseContext.description))}</span></> : formatDiscogsText(releaseContext.description)}</> : 'Discogs does not provide release, album, or artist notes for this selection.'}</p>
-                              {releaseContext.descriptionSource === 'artist' && releaseContext.description ? <button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(releaseContext.description!))}>Show all</button> : null}
+                              {releaseContext.descriptionSource === 'artist' && releaseContext.description ? <button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(releaseContext.description!))}>Show All</button> : null}
                             </div>
                           </>
                         )}
@@ -1524,8 +1524,8 @@ function App() {
           />
 
           {status ? <p className="status">{status}</p> : null}
-          {entryBeingCorrected ? <div className="form-actions"><button type="button" className="secondary-button" onClick={cancelMatchCorrection}>Cancel correction</button></div> : null}
-          <div className="form-actions"><button type="submit" disabled={Boolean(catalogSaveAction)}>{entryBeingCorrected ? 'Apply corrected match' : 'Add to Catalog'}</button></div>
+          {entryBeingCorrected ? <div className="form-actions"><button type="button" className="secondary-button" onClick={cancelMatchCorrection}>Cancel Correction</button></div> : null}
+          <div className="form-actions"><button type="submit" disabled={Boolean(catalogSaveAction)}>{entryBeingCorrected ? 'Apply Corrected Match' : 'Add to Catalog'}</button></div>
         </form>
           </>
         ) : <p className="hint">Select a release result to review it and add it to your catalog.</p>}
@@ -1601,18 +1601,18 @@ function App() {
                 <details className="detail-action-menu">
                   <summary aria-label={`Actions for ${viewedEntry.artist} — ${viewedEntry.title}`} title="Catalog actions">•••</summary>
                   <div className="detail-action-menu-items">
-                    <button type="button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); void openEbaySearch(viewedEntry); }}>Open eBay listings</button>
+                    <button type="button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); void openEbaySearch(viewedEntry); }}>Open eBay Listings</button>
                     <button type="button" className="secondary-button" disabled={!viewedEntry.discogsId} onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); openDiscogsMarketplace(viewedEntry); }}>Open Discogs Marketplace</button>
-                    <button type="button" className="secondary-button" disabled={!viewedEntry.discogsId && !viewedEntry.discogsUri} onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); openDiscogsRelease(viewedEntry); }}>Open Discogs release</button>
-                    <button type="button" className="secondary-button" disabled={!viewedEntry.discogsId} onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); void loadDetailImages(); }}>{showDetailImages ? 'Hide release images' : 'Show all release images'}</button>
-                    <button type="button" className="secondary-button" disabled={!viewedEntry.discogsId} onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); void openTracklist(); }}>Show tracklist</button>
-                    <button type="button" className="secondary-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); beginCatalogDetailsEdit(); }}>Edit catalog details</button>
-                    <button type="button" className="secondary-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); beginEstimatedValueEdit(); }}>Update estimated value</button>
-                    <button type="button" className="secondary-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); beginMatchCorrection(viewedEntry); }}>Correct Discogs match</button>
-                    <button type="button" className="danger-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); void removeCatalogEntry(viewedEntry); }}>Remove entry</button>
+                    <button type="button" className="secondary-button" disabled={!viewedEntry.discogsId && !viewedEntry.discogsUri} onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); openDiscogsRelease(viewedEntry); }}>Open Discogs Release</button>
+                    <button type="button" className="secondary-button" disabled={!viewedEntry.discogsId} onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); void loadDetailImages(); }}>{showDetailImages ? 'Hide Release Images' : 'Show All Release Images'}</button>
+                    <button type="button" className="secondary-button" disabled={!viewedEntry.discogsId} onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); void openTracklist(); }}>Show Tracklist</button>
+                    <button type="button" className="secondary-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); beginCatalogDetailsEdit(); }}>Edit Catalog Details</button>
+                    <button type="button" className="secondary-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); beginEstimatedValueEdit(); }}>Update Estimated Value</button>
+                    <button type="button" className="secondary-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); beginMatchCorrection(viewedEntry); }}>Correct Discogs Match</button>
+                    <button type="button" className="danger-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); void removeCatalogEntry(viewedEntry); }}>Remove Entry</button>
                   </div>
                 </details>
-                <button type="button" className="secondary-button" onClick={() => setViewedEntry(null)}>Close details</button>
+                <button type="button" className="secondary-button" onClick={() => setViewedEntry(null)}>Close Details</button>
               </div>
             </div>
             {detailStatus ? <p className="hint">{detailStatus}</p> : null}
@@ -1652,13 +1652,13 @@ function App() {
                 <label>Media condition<select value={catalogDetailsForm.mediaCondition} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, mediaCondition: event.target.value })}><option value="">Not specified</option>{MEDIA_CONDITIONS.map((condition) => <option key={condition} value={condition}>{condition}</option>)}</select></label>
               </div>
               <label>Notes<textarea value={catalogDetailsForm.notes} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, notes: event.target.value })} /></label>
-              <div className="form-actions"><button type="submit" disabled={Boolean(catalogSaveAction)}>Save details</button><button type="button" className="secondary-button" disabled={Boolean(catalogSaveAction)} onClick={() => { setEditingCatalogDetails(false); setCatalogDetailsForm(null); setCatalogDetailsStatus(''); }}>Cancel</button></div>
+              <div className="form-actions"><button type="submit" disabled={Boolean(catalogSaveAction)}>Save Details</button><button type="button" className="secondary-button" disabled={Boolean(catalogSaveAction)} onClick={() => { setEditingCatalogDetails(false); setCatalogDetailsForm(null); setCatalogDetailsStatus(''); }}>Cancel</button></div>
               {catalogDetailsStatus ? <p className="hint">{catalogDetailsStatus}</p> : null}
             </form> : null}
-            {editingEstimatedValue ? <div className="detail-section estimated-value-editor"><strong>Update estimated value</strong><div className="inline-form"><input type="number" min="0" step="0.01" disabled={Boolean(catalogSaveAction)} value={estimatedValueInput} onChange={(event) => setEstimatedValueInput(event.target.value)} placeholder="Leave blank to clear" aria-label="Estimated value" /><button type="button" disabled={Boolean(catalogSaveAction)} onClick={() => void saveEstimatedValue()}>Save value</button><button type="button" className="secondary-button" disabled={Boolean(catalogSaveAction)} onClick={() => { setEditingEstimatedValue(false); setEstimatedValueStatus(''); }}>Cancel</button></div>{estimatedValueStatus ? <p className="hint">{estimatedValueStatus}</p> : null}</div> : null}
+            {editingEstimatedValue ? <div className="detail-section estimated-value-editor"><strong>Update estimated value</strong><div className="inline-form"><input type="number" min="0" step="0.01" disabled={Boolean(catalogSaveAction)} value={estimatedValueInput} onChange={(event) => setEstimatedValueInput(event.target.value)} placeholder="Leave blank to clear" aria-label="Estimated value" /><button type="button" disabled={Boolean(catalogSaveAction)} onClick={() => void saveEstimatedValue()}>Save Value</button><button type="button" className="secondary-button" disabled={Boolean(catalogSaveAction)} onClick={() => { setEditingEstimatedValue(false); setEstimatedValueStatus(''); }}>Cancel</button></div>{estimatedValueStatus ? <p className="hint">{estimatedValueStatus}</p> : null}</div> : null}
             {viewedEntry.notes ? <div className="detail-section"><strong>Your notes</strong><p>{viewedEntry.notes}</p></div> : null}
-            {detailContext?.artistProfile && detailContext.descriptionSource !== 'artist' ? <div className="detail-section"><strong>Artist summary</strong><p className="artist-summary-preview"><span className="artist-summary-desktop">{formatDiscogsText(detailContext.artistProfile)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(detailContext.artistProfile))}</span></p><button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(detailContext.artistProfile!))}>Show all</button></div> : null}
-            {detailContext ? <div className="detail-section"><strong>{detailContext.descriptionSource === 'release' ? 'Release notes' : detailContext.descriptionSource === 'album' ? 'Album notes' : 'Artist summary'}</strong><p className={detailContext.descriptionSource === 'artist' ? 'artist-summary-preview' : undefined}>{detailContext.description ? <>{detailContext.descriptionSource === 'artist' ? <><span className="artist-summary-desktop">{formatDiscogsText(detailContext.description)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(detailContext.description))}</span></> : formatDiscogsText(detailContext.description)}</> : 'No additional Discogs notes are available.'}</p>{detailContext.descriptionSource === 'artist' && detailContext.description ? <button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(detailContext.description!))}>Show all</button> : null}</div> : null}
+            {detailContext?.artistProfile && detailContext.descriptionSource !== 'artist' ? <div className="detail-section"><strong>Artist summary</strong><p className="artist-summary-preview"><span className="artist-summary-desktop">{formatDiscogsText(detailContext.artistProfile)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(detailContext.artistProfile))}</span></p><button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(detailContext.artistProfile!))}>Show All</button></div> : null}
+            {detailContext ? <div className="detail-section"><strong>{detailContext.descriptionSource === 'release' ? 'Release notes' : detailContext.descriptionSource === 'album' ? 'Album notes' : 'Artist summary'}</strong><p className={detailContext.descriptionSource === 'artist' ? 'artist-summary-preview' : undefined}>{detailContext.description ? <>{detailContext.descriptionSource === 'artist' ? <><span className="artist-summary-desktop">{formatDiscogsText(detailContext.description)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(detailContext.description))}</span></> : formatDiscogsText(detailContext.description)}</> : 'No additional Discogs notes are available.'}</p>{detailContext.descriptionSource === 'artist' && detailContext.description ? <button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(detailContext.description!))}>Show All</button> : null}</div> : null}
             {detailEbayStats?.sampledListingCount ? <div className={`detail-section ebay-listing-results ${detailEbayStats.searchMethod}`}><strong>eBay active listings</strong><p>{detailEbayStats.listingCount} listings found • {detailEbayStats.searchMethod === 'catalogNumber' ? 'catalog number match' : 'artist/title CD search'} • Low / average / high: {detailEbayStats.currency || '$'} {detailEbayStats.lowestPrice?.toFixed(2)} / {detailEbayStats.averagePrice?.toFixed(2)} / {detailEbayStats.highestPrice?.toFixed(2)}</p></div> : null}
             {showDetailImages ? (
               <div className="detail-section release-image-gallery">
@@ -1680,7 +1680,7 @@ function App() {
                 <section className="tracklist-popover" role="dialog" aria-modal="true" aria-label={`Tracklist for ${viewedEntry.title}`}>
                   <div className="tracklist-header">
                     <div><h3>Tracklist</h3><p>{viewedEntry.artist} — {viewedEntry.title}</p></div>
-                    <button type="button" className="secondary-button" onClick={() => setShowTracklist(false)}>Back to details</button>
+                    <button type="button" className="secondary-button" onClick={() => setShowTracklist(false)}>Back to Details</button>
                   </div>
                   {detailTracksStatus ? <p className="hint">{detailTracksStatus}</p> : null}
                   {personalMusicStatus ? <p className="hint">{personalMusicStatus}</p> : null}
@@ -1697,7 +1697,7 @@ function App() {
                               {video.channelTitle ? <span>{video.channelTitle}</span> : null}
                               {video.durationSeconds ? <span>{Math.floor(video.durationSeconds / 60)}:{String(video.durationSeconds % 60).padStart(2, '0')}</span> : null}
                             </div>
-                            <button type="button" onClick={() => void chooseYouTubeMatch(youTubeCandidates.track, video)}>Use this match</button>
+                            <button type="button" onClick={() => void chooseYouTubeMatch(youTubeCandidates.track, video)}>Use This Match</button>
                           </div>
                         ))}
                       </div>
@@ -1733,9 +1733,9 @@ function App() {
                           <span className="track-title">{track.title}</span>
                           {track.duration ? <span className="track-duration">{track.duration}</span> : null}
                           <div className="track-actions">
-                            <button type="button" onClick={() => personalMatch ? playLocalCopy(personalMatch) : void findPersonalCopy(track)}>{personalMatch ? 'Play local copy' : 'Find personal copy'}</button>
-                            {savedMatch ? <button type="button" onClick={() => { setLocalAudioPlayer(null); setYouTubePlayer({ videoId: savedMatch.videoId, title: savedMatch.videoTitle, watchUrl: savedMatch.videoUrl }); }}>Play saved match</button> : null}
-                            <button type="button" className="secondary-button" onClick={() => void findYouTubeMatches(track)}>{savedMatch ? 'Change match' : 'Find matches'}</button>
+                            <button type="button" onClick={() => personalMatch ? playLocalCopy(personalMatch) : void findPersonalCopy(track)}>{personalMatch ? 'Play Local Copy' : 'Find Personal Copy'}</button>
+                            {savedMatch ? <button type="button" onClick={() => { setLocalAudioPlayer(null); setYouTubePlayer({ videoId: savedMatch.videoId, title: savedMatch.videoTitle, watchUrl: savedMatch.videoUrl }); }}>Play Saved Match</button> : null}
+                            <button type="button" className="secondary-button" onClick={() => void findYouTubeMatches(track)}>{savedMatch ? 'Change Match' : 'Find Matches'}</button>
                             <button type="button" className="secondary-button" onClick={() => openTrackOnYouTube(track)}>Search</button>
                           </div>
                         </li>
@@ -1789,11 +1789,11 @@ function App() {
                     <button type="button" onClick={(event) => {
                       event.currentTarget.closest('details')?.removeAttribute('open');
                       if (!viewedEntry) setViewedEntry(item);
-                    }}>View details</button>
+                    }}>View Details</button>
                     <button type="button" className="secondary-button" onClick={(event) => {
                       event.currentTarget.closest('details')?.removeAttribute('open');
                       beginMatchCorrection(item);
-                    }}>Change association</button>
+                    }}>Change Association</button>
                     <button type="button" className="secondary-button" onClick={(event) => {
                       event.currentTarget.closest('details')?.removeAttribute('open');
                       void openEbaySearch(item);
@@ -1801,7 +1801,7 @@ function App() {
                     <button type="button" className="danger-button" onClick={(event) => {
                       event.currentTarget.closest('details')?.removeAttribute('open');
                       void removeCatalogEntry(item);
-                    }}>Remove entry</button>
+                    }}>Remove Entry</button>
                   </div>
                 </details>
               </div>
@@ -1819,8 +1819,8 @@ function App() {
       </CatalogPage>
       {localAudioPlayer ? <LocalAudioPlayer {...localAudioPlayer} onClose={() => setLocalAudioPlayer(null)} onError={() => setPersonalMusicStatus('This local file could not be played. It may have been moved or renamed since the last scan; open Music Library and scan again.')} /> : null}
       {expandedArtistSummary ? <ArtistSummaryDialog summary={expandedArtistSummary} onClose={() => setExpandedArtistSummary(null)} /> : null}
-      {personalTrackNotFoundPrompt ? <div className="artist-summary-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPersonalTrackNotFoundPrompt(null); }}><section className="artist-summary-dialog" role="dialog" aria-modal="true" aria-label="Personal music match not found"><div className="artist-summary-dialog-header"><h2>No personal match found</h2><button type="button" className="secondary-button" onClick={() => setPersonalTrackNotFoundPrompt(null)}>No</button></div><p>No tagged local match was found for <strong>{personalTrackNotFoundPrompt.title}</strong>. If you believe the track is in your scanned music collection, you can make a manual album-folder match.</p><div className="form-actions"><button type="button" onClick={beginManualPersonalAlbumMatch}>Yes, make manual match</button><button type="button" className="secondary-button" onClick={() => setPersonalTrackNotFoundPrompt(null)}>No, not now</button></div></section></div> : null}
-      {showPersonalFolderMapping ? <div className="artist-summary-overlay" role="presentation"><section className="artist-summary-dialog" role="dialog" aria-modal="true" aria-label="Manual personal album match"><div className="artist-summary-dialog-header"><h2>Manual personal album match</h2><button type="button" className="secondary-button" onClick={() => setShowPersonalFolderMapping(false)}>Cancel</button></div>{personalAlbumValidation === 'invalid' ? <><p>Cannot make one-to-one track associations for this folder.</p><div className="form-actions"><button type="button" onClick={() => setShowPersonalFolderMapping(false)}>OK</button></div></> : <><p>Select the base artist folder and then the album folder. The app will validate every track before enabling Save.</p><label>Artist folder<select value={selectedPersonalArtistFolderPath} onChange={(event) => void browsePersonalAlbumFolders(event.target.value)} disabled={!personalArtistFolders}><option value="">{personalArtistFolders ? 'Choose artist folder' : 'Loading artist folders...'}</option>{personalArtistFolders?.map((folder) => <option key={folder.folderPath} value={folder.folderPath}>{folder.name} ({folder.trackCount} tracks)</option>)}</select></label><label>Album folder<select value={selectedPersonalAlbumFolderPath} onChange={(event) => void validatePersonalAlbumFolder(event.target.value)} disabled={!selectedPersonalArtistFolderPath || !personalBrowsableAlbumFolders || personalAlbumValidation === 'checking'}><option value="">{selectedPersonalArtistFolderPath ? 'Choose album folder' : 'Choose an artist first'}</option>{personalBrowsableAlbumFolders?.map((folder) => <option key={folder.folderPath} value={folder.folderPath}>{folder.album || folder.name} ({folder.trackCount} tracks)</option>)}</select></label>{personalAlbumMappingStatus ? <p className="hint">{personalAlbumMappingStatus}</p> : null}<div className="form-actions"><button type="button" disabled={personalAlbumValidation !== 'valid'} onClick={() => void savePersonalAlbumFolder(selectedPersonalAlbumFolderPath)}>Save mapping</button><button type="button" className="secondary-button" onClick={() => setShowPersonalFolderMapping(false)}>Cancel</button></div></>}</section></div> : null}
+      {personalTrackNotFoundPrompt ? <div className="artist-summary-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPersonalTrackNotFoundPrompt(null); }}><section className="artist-summary-dialog" role="dialog" aria-modal="true" aria-label="Personal music match not found"><div className="artist-summary-dialog-header"><h2>No personal match found</h2><button type="button" className="secondary-button" onClick={() => setPersonalTrackNotFoundPrompt(null)}>No</button></div><p>No tagged local match was found for <strong>{personalTrackNotFoundPrompt.title}</strong>. If you believe the track is in your scanned music collection, you can make a manual album-folder match.</p><div className="form-actions"><button type="button" onClick={beginManualPersonalAlbumMatch}>Yes, Make Manual Match</button><button type="button" className="secondary-button" onClick={() => setPersonalTrackNotFoundPrompt(null)}>No, Not Now</button></div></section></div> : null}
+      {showPersonalFolderMapping ? <div className="artist-summary-overlay" role="presentation"><section className="artist-summary-dialog" role="dialog" aria-modal="true" aria-label="Manual personal album match"><div className="artist-summary-dialog-header"><h2>Manual personal album match</h2><button type="button" className="secondary-button" onClick={() => setShowPersonalFolderMapping(false)}>Cancel</button></div>{personalAlbumValidation === 'invalid' ? <><p>Cannot make one-to-one track associations for this folder.</p><div className="form-actions"><button type="button" onClick={() => setShowPersonalFolderMapping(false)}>OK</button></div></> : <><p>Select the base artist folder and then the album folder. The app will validate every track before enabling Save.</p><label>Artist folder<select value={selectedPersonalArtistFolderPath} onChange={(event) => void browsePersonalAlbumFolders(event.target.value)} disabled={!personalArtistFolders}><option value="">{personalArtistFolders ? 'Choose artist folder' : 'Loading artist folders...'}</option>{personalArtistFolders?.map((folder) => <option key={folder.folderPath} value={folder.folderPath}>{folder.name} ({folder.trackCount} tracks)</option>)}</select></label><label>Album folder<select value={selectedPersonalAlbumFolderPath} onChange={(event) => void validatePersonalAlbumFolder(event.target.value)} disabled={!selectedPersonalArtistFolderPath || !personalBrowsableAlbumFolders || personalAlbumValidation === 'checking'}><option value="">{selectedPersonalArtistFolderPath ? 'Choose album folder' : 'Choose an artist first'}</option>{personalBrowsableAlbumFolders?.map((folder) => <option key={folder.folderPath} value={folder.folderPath}>{folder.album || folder.name} ({folder.trackCount} tracks)</option>)}</select></label>{personalAlbumMappingStatus ? <p className="hint">{personalAlbumMappingStatus}</p> : null}<div className="form-actions"><button type="button" disabled={personalAlbumValidation !== 'valid'} onClick={() => void savePersonalAlbumFolder(selectedPersonalAlbumFolderPath)}>Save Mapping</button><button type="button" className="secondary-button" onClick={() => setShowPersonalFolderMapping(false)}>Cancel</button></div></>}</section></div> : null}
         </>
       )}
       </main>

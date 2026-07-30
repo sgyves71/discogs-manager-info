@@ -36,7 +36,7 @@ test.describe('Stage Discogs Mock', () => {
     await page.goto('/');
     await page.getByPlaceholder('Artist').fill('Stage Mock Artist');
     await page.getByPlaceholder('Album title').fill('Mocked CD Album');
-    await page.getByRole('button', { name: 'Look up', exact: true }).click();
+    await page.getByRole('button', { name: 'Look Up', exact: true }).click();
 
     await expect(page.getByText('Mocked CD Album', { exact: true })).toBeVisible();
     await page.getByText('Mocked CD Album', { exact: true }).click();
@@ -52,7 +52,7 @@ test.describe('Stage Discogs Mock', () => {
     await page.goto('/');
     await page.getByPlaceholder('Artist').fill('Stage Mock Artist');
     await page.getByPlaceholder('Album title').fill('Mocked CD Album');
-    await page.getByRole('button', { name: 'Look up', exact: true }).click();
+    await page.getByRole('button', { name: 'Look Up', exact: true }).click();
 
     const countryFilter = page.getByRole('combobox', { name: 'Filter search results by country' });
     await expect(countryFilter).toBeEnabled();
@@ -69,7 +69,7 @@ test.describe('Stage Discogs Mock', () => {
     await page.getByPlaceholder('Album title').fill('Mocked CD Album');
     await page.getByPlaceholder('Catalog number').fill('SEARCH-PLACEHOLDER');
     await page.getByPlaceholder('Barcode').fill('0123456789012');
-    await page.getByRole('button', { name: 'Look up', exact: true }).click();
+    await page.getByRole('button', { name: 'Look Up', exact: true }).click();
     await expect(page.getByText('Mocked CD Album', { exact: true })).toBeVisible();
 
     await page.getByRole('button', { name: 'Clear', exact: true }).click();
