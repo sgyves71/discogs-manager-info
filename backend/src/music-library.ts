@@ -4,6 +4,52 @@ import { parseFile } from 'music-metadata';
 
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.flac', '.m4a', '.aac', '.ogg', '.opus', '.wav', '.wma']);
 const LOW_VALUE_WORDS = new Set(['a', 'an', 'and', 'at', 'by', 'for', 'from', 'in', 'of', 'on', 'the', 'to', 'with']);
+const ALBUM_QUALIFIER_PATTERN = /\b(pt|part|vol|volume|disc)\.?\s*(\d+|[ivxlcdm]+)\b/giu;
+
+type AlbumQualifier = {
+  kind: 'installment' | 'disc';
+  number: number;
+};
+
+function romanNumeralToNumber(value: string): number | null {
+  const numerals: Record<string, number> = { i: 1, v: 5, x: 10, l: 50, c: 100, d: 500, m: 1000 };
+  const letters = value.toLowerCase();
+  let result = 0;
+  let previous = 0;
+  for (const letter of [...letters].reverse()) {
+    const current = numerals[letter];
+    if (!current) return null;
+    if (current < previous) result -= current;
+    else { result += current; previous = current; }
+  }
+  return result || null;
+}
+
+function albumQualifierNumber(value: string): number | null {
+  return /^\d+$/u.test(value) ? Number(value) : romanNumeralToNumber(value);
+}
+
+function albumQualifiers(value: string): AlbumQualifier[] {
+  return [...value.matchAll(ALBUM_QUALIFIER_PATTERN)]
+    .map((match) => {
+      const number = albumQualifierNumber(match[2]);
+      if (!number) return null;
+      return { kind: match[1].toLowerCase() === 'disc' ? 'disc' : 'installment', number };
+    })
+    .filter((qualifier): qualifier is AlbumQualifier => qualifier !== null);
+}
+
+function sameAlbumQualifiers(left: AlbumQualifier[], right: AlbumQualifier[]): boolean {
+  return left.length === right.length && left.every((qualifier, index) => qualifier.kind === right[index].kind && qualifier.number === right[index].number);
+}
+
+function canonicalizeAlbumQualifiers(value: string): string {
+  return value.replace(ALBUM_QUALIFIER_PATTERN, (_match, type: string, ordinal: string) => {
+    const number = albumQualifierNumber(ordinal);
+    if (!number) return _match;
+    return type.toLowerCase() === 'disc' ? `disc ${number}` : `installment ${number}`;
+  });
+}
 
 export function normalizeMusicText(value: string): string {
   return value
@@ -50,7 +96,13 @@ export function scoreMusicTextMatch(requestedTitle: string, candidateTitle: stri
 }
 
 export function scoreMusicTitleMatch(requestedTitle: string, candidateTitle: string): number {
-  return scoreMusicTextMatch(requestedTitle, candidateTitle);
+  const requestedQualifiers = albumQualifiers(requestedTitle);
+  const candidateQualifiers = albumQualifiers(candidateTitle);
+  // A requested part/volume/disc must not silently fall back to an unqualified
+  // base album or a different installment. A generic request may still match a
+  // more specific candidate, preserving the existing disc-number behavior.
+  if (requestedQualifiers.length && !sameAlbumQualifiers(requestedQualifiers, candidateQualifiers)) return 0;
+  return scoreMusicTextMatch(canonicalizeAlbumQualifiers(requestedTitle), canonicalizeAlbumQualifiers(candidateTitle));
 }
 
 export function shortenedArtistSearch(value: string): string | null {

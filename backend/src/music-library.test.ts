@@ -12,6 +12,12 @@ test('scoreMusicTitleMatch accepts album qualifiers such as a disc number', () =
   assert.equal(scoreMusicTitleMatch('Staying A Life', 'Staying A Life, Disc 1'), 0.95);
 });
 
+test('scoreMusicTitleMatch recognizes equivalent part and volume notation without accepting the base album', () => {
+  assert.equal(scoreMusicTitleMatch('The Metal Opera Pt.II', 'The Metal Opera, Vol. 2'), 1);
+  assert.equal(scoreMusicTitleMatch('The Metal Opera Pt.II', 'The Metal Opera'), 0);
+  assert.equal(scoreMusicTitleMatch('The Metal Opera Pt.II', 'The Metal Opera Pt. I'), 0);
+});
+
 test('scoreMusicTitleMatch accepts close album spelling when the core words align', () => {
   assert.equal(scoreMusicTitleMatch('Just Sumthin To Do', "Just Somethin' To Do"), 2 / 3);
 });
