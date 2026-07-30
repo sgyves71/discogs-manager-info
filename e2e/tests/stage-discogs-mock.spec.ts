@@ -47,4 +47,19 @@ test.describe('Stage Discogs Mock', () => {
     await expect(selectedResult).toContainText('Hard Rock');
     await expect(selectedResult).toContainText(/synthetic CD release supplies stable label/i);
   });
+
+  test('Filters Search Results by Country When Multiple Countries Are Available', async ({ page }) => {
+    await page.goto('/');
+    await page.getByPlaceholder('Artist').fill('Stage Mock Artist');
+    await page.getByPlaceholder('Album title').fill('Mocked CD Album');
+    await page.getByRole('button', { name: 'Look up', exact: true }).click();
+
+    const countryFilter = page.getByRole('combobox', { name: 'Filter search results by country' });
+    await expect(countryFilter).toBeEnabled();
+    await expect(countryFilter).toHaveText(/US/);
+    await expect(countryFilter).toHaveText(/UK/);
+    await countryFilter.selectOption('UK');
+    await expect(page.getByText('Mocked CD Album (Reissue)', { exact: true })).toBeVisible();
+    await expect(page.getByText('Mocked CD Album', { exact: true })).toBeHidden();
+  });
 });

@@ -260,6 +260,7 @@ function App() {
   const [expandedArtistSummary, setExpandedArtistSummary] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [resultCountryFilter, setResultCountryFilter] = useState('');
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('');
   const addCardRef = useRef<HTMLDivElement>(null);
@@ -329,11 +330,17 @@ function App() {
     return `Showing ${results.length} Discogs ${results.length === 1 ? 'match' : 'matches'} for “${description}”.`;
   }, [hasSearched, results.length, searchAlbumTitle, searchArtist, searchBarcode, searchCatalogNumber]);
 
-  const totalPages = Math.ceil(results.length / RESULTS_PER_PAGE);
+  const availableResultCountries = useMemo(() => Array.from(new Set(
+    results.map((result) => result.country?.trim()).filter((country): country is string => Boolean(country)),
+  )).sort((left, right) => left.localeCompare(right)), [results]);
+  const filteredResults = useMemo(() => resultCountryFilter
+    ? results.filter((result) => result.country?.trim() === resultCountryFilter)
+    : results, [resultCountryFilter, results]);
+  const totalPages = Math.ceil(filteredResults.length / RESULTS_PER_PAGE);
   const visibleResults = useMemo(() => {
     const start = (currentPage - 1) * RESULTS_PER_PAGE;
-    return results.slice(start, start + RESULTS_PER_PAGE);
-  }, [currentPage, results]);
+    return filteredResults.slice(start, start + RESULTS_PER_PAGE);
+  }, [currentPage, filteredResults]);
   const collectionTotalPages = Math.max(1, Math.ceil(collectionTotal / COLLECTION_PAGE_SIZE));
   const collectionStart = collectionTotal ? (collectionPage - 1) * COLLECTION_PAGE_SIZE + 1 : 0;
   const collectionEnd = Math.min(collectionPage * COLLECTION_PAGE_SIZE, collectionTotal);
@@ -562,6 +569,7 @@ function App() {
     setLoading(true);
     setHasSearched(true);
     setCurrentPage(1);
+    setResultCountryFilter('');
     setStatus('Searching Discogs...');
 
     try {
@@ -1327,6 +1335,20 @@ function App() {
             <div className="search-criteria">
               <div><strong>Artist Name:</strong> {searchArtist || 'Any artist'}</div>
               <div><strong>Album Title:</strong> {searchAlbumTitle || 'Any album title'}</div>
+            </div>
+            <div className="result-filter">
+              <label>
+                Country
+                <select
+                  aria-label="Filter search results by country"
+                  value={resultCountryFilter}
+                  disabled={availableResultCountries.length < 2}
+                  onChange={(event) => { setResultCountryFilter(event.target.value); setCurrentPage(1); }}
+                >
+                  <option value="">All countries</option>
+                  {availableResultCountries.map((country) => <option key={country} value={country}>{country}</option>)}
+                </select>
+              </label>
             </div>
             <div className="results-list">
             {visibleResults.map((release) => {
