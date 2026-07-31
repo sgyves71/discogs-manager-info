@@ -115,6 +115,8 @@ test.describe('Stage Catalog User Interface', () => {
     const menu = page.locator('.detail-action-menu');
     await menu.locator('summary').click();
     await expect(menu).toHaveAttribute('open', '');
+    await menu.locator('.detail-action-menu-items').hover();
+    await expect(menu).toHaveAttribute('open', '');
     await menu.hover();
     await page.locator('.collection-detail-header').hover({ position: { x: 20, y: 20 } });
     await expect(menu).not.toHaveAttribute('open', '');

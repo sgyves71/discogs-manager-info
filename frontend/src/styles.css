@@ -571,7 +571,7 @@ button:disabled {
 .detail-action-menu-items {
   position: absolute;
   z-index: 35;
-  top: calc(100% + 0.45rem);
+  top: 100%;
   left: 0;
   display: grid;
   width: 270px;
