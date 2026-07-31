@@ -41,6 +41,7 @@ test.describe('Stage MusicBrainz Search', () => {
       await page.getByText('Mocked CD Album', { exact: true }).click();
 
       await expect(page.getByText('Artist Details', { exact: false })).toBeVisible();
+      await expect(page.getByText('Artist Details - MusicBrainz', { exact: true })).toBeVisible();
       await expect(page.getByText(/MusicBrainz artist-summary fallback order/i).first()).toBeVisible();
       await expect(page.getByText(/MusicBrainz release-group notes/i)).toBeVisible();
     } finally {
