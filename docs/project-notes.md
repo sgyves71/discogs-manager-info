@@ -27,11 +27,11 @@ Discogs Manager is a personal, local-first application for cataloging a CD colle
 - **Verify services:** Open `http://localhost:5173` for the frontend. The backend health check is `http://localhost:3100/api/health`.
 - **Backend fallback:** If the TypeScript watcher fails on this machine, build the backend with `npm.cmd run build --workspace backend`, then run `node.exe backend/dist/index.js` from the repository root. Stop it with `Ctrl+C` in the terminal where it is running before rebuilding or starting it again.
 - **Home-network access:** Vite is configured with `host: '0.0.0.0'`, exposing the frontend on the local network at port `5173`. Keep this restricted to the Windows Private firewall profile; do not create router port-forwarding rules.
-- **Phone camera HTTPS:** The LAN frontend runs at `https://192.168.68.72:5173` using a local `mkcert` certificate stored in `frontend/certs/` (ignored by Git). Install `discogs-manager-rootCA.cer` from that directory as a trusted CA on the phone before using the camera scanner. Regenerate the certificate if the PC's LAN IP changes.
+- **Phone camera HTTPS:** The LAN frontend runs at `https://192.168.68.50:5173` using a local `mkcert` certificate stored in `frontend/certs/` (ignored by Git). Install `discogs-manager-rootCA.cer` from that directory as a trusted CA on the phone before using the camera scanner. Regenerate the certificate if the PC's LAN IP changes.
 
 ## Discogs search decisions
 
-- This application catalogs CDs only. Discogs database searches send the `format=CD` filter.
+- Discogs database searches include `CD`, `DVD`, and `Box Set` formats. Each format is searched through the shared Discogs rate limiter and the distinct releases are merged.
 - Searches request up to 100 Discogs matches; the interface displays 20 results per page.
 - Search results sort by release year ascending before pagination; releases with no known year appear last.
 - Searches accept separate Artist and Album title inputs and send them as Discogs `artist` and `release_title` filters.
