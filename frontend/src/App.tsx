@@ -121,7 +121,7 @@ type PersonalArtistFolder = { folderPath: string; name: string; trackCount: numb
 type PersonalBrowsableAlbumFolder = { folderPath: string; name: string; album: string; trackCount: number };
 
 const RESULTS_PER_PAGE = 20;
-const COLLECTION_PAGE_SIZE = 24;
+const COLLECTION_BATCH_SIZE = 50;
 const MEDIA_CONDITIONS = [
   'Mint (M)',
   'Near Mint (NM or M-)',
@@ -200,8 +200,10 @@ function App() {
   const [collectionSearch, setCollectionSearch] = useState('');
   const [collectionPage, setCollectionPage] = useState(1);
   const [collectionTotal, setCollectionTotal] = useState(0);
+  const [collectionLoading, setCollectionLoading] = useState(false);
   const [collectionRefresh, setCollectionRefresh] = useState(0);
   const [collectionStatus, setCollectionStatus] = useState('');
+  const collectionLoadInFlightRef = useRef(false);
   const [title, setTitle] = useState('');
   const [artist, setArtist] = useState('');
   const [notes, setNotes] = useState('');
@@ -258,6 +260,7 @@ function App() {
   const [musicLibraryStatus, setMusicLibraryStatus] = useState('');
   const [savingMusicLibrary, setSavingMusicLibrary] = useState(false);
   const [catalogSaveAction, setCatalogSaveAction] = useState<string | null>(null);
+  const [catalogSaveError, setCatalogSaveError] = useState<string | null>(null);
   const catalogSaveInFlightRef = useRef(false);
   const [marketStatsBackfill, setMarketStatsBackfill] = useState<MarketStatsBackfill | null>(null);
   const [marketStatsBackfillStatus, setMarketStatsBackfillStatus] = useState('');
@@ -280,21 +283,36 @@ function App() {
   }
 
   useEffect(() => {
+    let cancelled = false;
+    setCollectionLoading(true);
     const timeout = window.setTimeout(() => {
-      const params = new URLSearchParams({ page: String(collectionPage), pageSize: String(COLLECTION_PAGE_SIZE) });
+      const params = new URLSearchParams({ page: String(collectionPage), pageSize: String(COLLECTION_BATCH_SIZE) });
       if (collectionSearch.trim()) params.set('q', collectionSearch.trim());
       fetch(`/api/cds?${params.toString()}`)
         .then((res) => res.json())
         .then((data: { items?: CdEntry[]; total?: number }) => {
-          setItems(data.items ?? []);
+          if (cancelled) return;
+          const nextItems = data.items ?? [];
+          setItems((current) => collectionPage === 1 ? nextItems : [
+            ...current,
+            ...nextItems.filter((nextItem) => !current.some((item) => item.id === nextItem.id)),
+          ]);
           setCollectionTotal(data.total ?? 0);
         })
         .catch(() => {
-          setItems([]);
-          setCollectionTotal(0);
+          if (!cancelled && collectionPage === 1) {
+            setItems([]);
+            setCollectionTotal(0);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            collectionLoadInFlightRef.current = false;
+            setCollectionLoading(false);
+          }
         });
     }, 250);
-    return () => window.clearTimeout(timeout);
+    return () => { cancelled = true; window.clearTimeout(timeout); };
   }, [collectionPage, collectionRefresh, collectionSearch]);
 
   useEffect(() => {
@@ -350,9 +368,7 @@ function App() {
     const start = (currentPage - 1) * RESULTS_PER_PAGE;
     return filteredResults.slice(start, start + RESULTS_PER_PAGE);
   }, [currentPage, filteredResults]);
-  const collectionTotalPages = Math.max(1, Math.ceil(collectionTotal / COLLECTION_PAGE_SIZE));
-  const collectionStart = collectionTotal ? (collectionPage - 1) * COLLECTION_PAGE_SIZE + 1 : 0;
-  const collectionEnd = Math.min(collectionPage * COLLECTION_PAGE_SIZE, collectionTotal);
+  const hasMoreCollectionItems = items.length < collectionTotal;
 
   useEffect(() => {
     const releasesNeedingCovers = visibleResults.filter(
@@ -812,10 +828,14 @@ function App() {
           : (created.estimatedValue != null ? 'CD saved with a fresh Discogs value.' : 'CD saved locally.'));
       } else {
         const error = await res.json().catch(() => ({ error: 'Unable to save this CD.' }));
-        setStatus(error.error || 'Unable to save this CD.');
+        const message = error.error || 'Unable to save this CD.';
+        setStatus(message);
+        setCatalogSaveError(message);
       }
     } catch {
-      setStatus('Unable to save this CD. Please try again.');
+      const message = 'Unable to save this CD. Please try again.';
+      setStatus(message);
+      setCatalogSaveError(message);
     } finally {
       catalogSaveInFlightRef.current = false;
       setCatalogSaveAction(null);
@@ -1304,7 +1324,7 @@ function App() {
         <button type="button" className={activePage === 'catalog' ? 'active' : ''} onClick={() => setActivePage('catalog')}>Catalog</button>
         <button type="button" className={activePage === 'library' ? 'active' : ''} onClick={() => setActivePage('library')}>Music Library</button>
       </aside>
-      <main className="app-shell">
+      <main className={`app-shell${activePage === 'catalog' ? ' catalog-shell' : ''}`}>
       {activePage === 'library' && (
         <>
           <h1>Music Library</h1>
@@ -1594,18 +1614,21 @@ function App() {
         items={items}
         search={collectionSearch}
         total={collectionTotal}
-        start={collectionStart}
-        end={collectionEnd}
-        page={collectionPage}
-        totalPages={collectionTotalPages}
+        isLoading={collectionLoading}
+        hasMoreItems={hasMoreCollectionItems}
         status={collectionStatus}
         hasOpenDetail={Boolean(viewedEntry)}
-        onSearchChange={(value) => { setCollectionSearch(value); setCollectionPage(1); }}
+        onSearchChange={(value) => { collectionLoadInFlightRef.current = false; setCollectionSearch(value); setCollectionPage(1); setItems([]); setCollectionTotal(0); }}
         onOpenDetail={setViewedEntry}
         onChangeAssociation={beginMatchCorrection}
         onSearchEbay={(item) => { void openEbaySearch(item); }}
         onRemove={(item) => { void removeCatalogEntry(item); }}
-        onPageChange={setCollectionPage}
+        onLoadMore={() => {
+          if (!collectionLoading && hasMoreCollectionItems && !collectionLoadInFlightRef.current) {
+            collectionLoadInFlightRef.current = true;
+            setCollectionPage((current) => current + 1);
+          }
+        }}
       >
         {false && <>
         <div className="collection-toolbar">
@@ -1618,7 +1641,7 @@ function App() {
               placeholder="Search Artist, Album, Catalog #, or Barcode"
             aria-label="Search collection"
           />
-          <span>{collectionTotal ? `Showing ${collectionStart}–${collectionEnd} of ${collectionTotal}` : 'No CDs found'}</span>
+          <span>{collectionTotal ? `Showing ${items.length} of ${collectionTotal}` : 'No CDs found'}</span>
         </div>
         </>}
         {false && <>
@@ -1652,7 +1675,7 @@ function App() {
                 {viewedEntry.discogsUri ? <a href={`https://www.discogs.com${viewedEntry.discogsUri}`} target="_blank" rel="noreferrer">View on Discogs</a> : null}
               </div>
               <div className="collection-detail-controls">
-                <details className="detail-action-menu">
+                <details className="detail-action-menu" onMouseLeave={(event) => event.currentTarget.removeAttribute('open')}>
                   <summary aria-label={`Actions for ${viewedEntry.artist} — ${viewedEntry.title}`} title="Catalog actions">•••</summary>
                   <div className="detail-action-menu-items">
                     <button type="button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); void openEbaySearch(viewedEntry); }}>Open eBay Listings</button>
@@ -1862,11 +1885,11 @@ function App() {
             </li>
           ))}
         </ul>
-        {collectionTotalPages > 1 && (
+        {false && collectionTotal > items.length && (
           <nav className="pagination collection-pagination" aria-label="Collection pages">
             <button type="button" onClick={() => setCollectionPage((page) => page - 1)} disabled={collectionPage === 1}>Previous</button>
-            <span>Page {collectionPage} of {collectionTotalPages}</span>
-            <button type="button" onClick={() => setCollectionPage((page) => page + 1)} disabled={collectionPage === collectionTotalPages}>Next</button>
+            <span>Continuous loading is enabled.</span>
+            <button type="button" onClick={() => setCollectionPage((page) => page + 1)}>Next</button>
           </nav>
         )}
       </>}
@@ -1877,6 +1900,7 @@ function App() {
       {showPersonalFolderMapping ? <div className="artist-summary-overlay" role="presentation"><section className="artist-summary-dialog" role="dialog" aria-modal="true" aria-label="Manual personal album match"><div className="artist-summary-dialog-header"><h2>Manual personal album match</h2><button type="button" className="secondary-button" onClick={() => setShowPersonalFolderMapping(false)}>Cancel</button></div>{personalAlbumValidation === 'invalid' ? <><p>Cannot make one-to-one track associations for this folder.</p><div className="form-actions"><button type="button" onClick={() => setShowPersonalFolderMapping(false)}>OK</button></div></> : <><p>Select the base artist folder and then the album folder. The app will validate every track before enabling Save.</p><label>Artist folder<select value={selectedPersonalArtistFolderPath} onChange={(event) => void browsePersonalAlbumFolders(event.target.value)} disabled={!personalArtistFolders}><option value="">{personalArtistFolders ? 'Choose artist folder' : 'Loading artist folders...'}</option>{personalArtistFolders?.map((folder) => <option key={folder.folderPath} value={folder.folderPath}>{folder.name} ({folder.trackCount} tracks)</option>)}</select></label><label>Album folder<select value={selectedPersonalAlbumFolderPath} onChange={(event) => void validatePersonalAlbumFolder(event.target.value)} disabled={!selectedPersonalArtistFolderPath || !personalBrowsableAlbumFolders || personalAlbumValidation === 'checking'}><option value="">{selectedPersonalArtistFolderPath ? 'Choose album folder' : 'Choose an artist first'}</option>{personalBrowsableAlbumFolders?.map((folder) => <option key={folder.folderPath} value={folder.folderPath}>{folder.album || folder.name} ({folder.trackCount} tracks)</option>)}</select></label>{personalAlbumMappingStatus ? <p className="hint">{personalAlbumMappingStatus}</p> : null}<div className="form-actions"><button type="button" disabled={personalAlbumValidation !== 'valid'} onClick={() => void savePersonalAlbumFolder(selectedPersonalAlbumFolderPath)}>Save Mapping</button><button type="button" className="secondary-button" onClick={() => setShowPersonalFolderMapping(false)}>Cancel</button></div></>}</section></div> : null}
         </>
       )}
+      {catalogSaveError ? <div className="artist-summary-overlay" role="presentation"><section className="artist-summary-dialog catalog-save-error-dialog" role="dialog" aria-modal="true" aria-label="Catalog save error"><div className="artist-summary-dialog-header"><h2>Cannot Save Catalog Entry</h2></div><p>{catalogSaveError}</p><div className="form-actions"><button type="button" autoFocus onClick={() => setCatalogSaveError(null)}>OK</button></div></section></div> : null}
       </main>
     </div>
   );

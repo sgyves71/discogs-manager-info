@@ -84,6 +84,10 @@ Discogs Manager is a personal, local-first application for cataloging a CD colle
 - Catalog sorting uses a persisted artist sort name that ignores a leading `The` (for example, `The Black Crowes` sorts under `Black Crowes`) while retaining the original artist display name. The sort field is maintained for new saves, manual edits, and Discogs-match corrections.
 - The initial OOP/component refactor moved catalog cover/context enrichment and all catalog backfill jobs into `backend/src/services/CatalogEnrichmentService`. `backend/src/index.ts` now acts more as route composition, while standalone frontend UI for the local audio player and artist-summary dialog lives in `frontend/src/components/`.
 - The catalog browse/search/pagination/list-row UI is now encapsulated in `frontend/src/components/CatalogPage.tsx`, with typed props and shared `CdEntry` data moved to `frontend/src/types.ts`. The existing catalog-detail dialog remains behaviorally unchanged for this refactor phase.
+- The desktop Catalog provides a List View / Cover Grid switch. Cover Grid expands to the available desktop viewport and fills each row with fixed roughly 200px square persisted-cover cards, with Artist and Album Title captions; the compact list remains the mobile presentation.
+- Catalog browsing uses continuous loading rather than page controls. It fetches 50-entry batches and appends the next batch when the user nears the bottom; a catalog search resets the loaded list before loading its matching entries.
+- A rejected catalog save, including a duplicate Discogs-release error, displays the backend's message in a blocking acknowledgement dialog with an `OK` button.
+- The Catalog Details ellipsis action menu closes when the pointer leaves the open menu.
 - Release format display and collector-value refinement remain planned follow-up work.
 
 ## eBay pricing context

@@ -23,6 +23,10 @@ body {
   padding: 2rem;
 }
 
+.catalog-shell {
+  max-width: none;
+}
+
 .app-layout {
   display: grid;
   grid-template-columns: 230px minmax(0, 1fr);
@@ -248,6 +252,108 @@ button:disabled {
   color: #aebbc5;
   font-size: 0.9rem;
   white-space: nowrap;
+}
+
+.collection-toolbar-meta,
+.collection-view-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+.collection-load-more {
+  min-height: 2.5rem;
+  padding: 0.9rem 0.25rem 0.1rem;
+  color: #aebbc5;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.collection-view-toggle button {
+  padding: 0.45rem 0.65rem;
+  font-size: 0.82rem;
+}
+
+.collection-view-toggle .is-active {
+  border-color: #82c5e7;
+  background: linear-gradient(180deg, #5ba7d2, #347ba5);
+}
+
+.catalog-cover-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 200px);
+  justify-content: start;
+  gap: 1.25rem;
+  margin-top: 1rem;
+}
+
+.catalog-cover-grid-item {
+  position: relative;
+  min-width: 0;
+  border: 1px solid #4e5964;
+  border-radius: 9px;
+  background: linear-gradient(145deg, #2b3138, #22282e);
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.035), 0 3px 8px rgba(0, 0, 0, 0.13);
+  cursor: pointer;
+  overflow: visible;
+}
+
+.catalog-cover-grid-item:hover {
+  border-color: #7199b3;
+  background: linear-gradient(145deg, #303941, #242e35);
+}
+
+.catalog-cover-grid-item:focus-visible {
+  outline: 2px solid #8fd0ef;
+  outline-offset: 2px;
+}
+
+.catalog-cover-grid-image {
+  display: grid;
+  width: 100%;
+  aspect-ratio: 1;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 8px 8px 0 0;
+  background: #1a1e23;
+  color: #81909b;
+  font-size: 2rem;
+}
+
+.catalog-cover-grid-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.catalog-cover-grid-caption {
+  display: grid;
+  gap: 0.18rem;
+  min-height: 4.3rem;
+  padding: 0.75rem 3rem 0.8rem 0.85rem;
+}
+
+.catalog-cover-grid-caption strong,
+.catalog-cover-grid-caption span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.catalog-cover-grid-caption strong {
+  color: #edf3f7;
+}
+
+.catalog-cover-grid-caption span {
+  color: #b9cbd6;
+}
+
+.catalog-cover-grid-item .collection-actions {
+  position: absolute;
+  right: 0.65rem;
+  bottom: 0.7rem;
 }
 
 .collection-pagination {
@@ -1090,6 +1196,10 @@ button:disabled {
   line-height: 1.55;
 }
 
+.catalog-save-error-dialog {
+  border-color: #bd6b6b;
+}
+
 .result-card.selected {
   border-color: #75bce5;
   background: linear-gradient(135deg, #303940, #232b31);
@@ -1155,6 +1265,15 @@ button:disabled {
   .collection-toolbar {
     grid-template-columns: 1fr;
     gap: 0.4rem;
+  }
+
+  .collection-toolbar-meta {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .collection-view-toggle {
+    display: none;
   }
 
   .collection-column-headings {
