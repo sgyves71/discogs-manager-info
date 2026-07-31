@@ -27,12 +27,12 @@ export function getStageMusicBrainzCatalogContext(criteria: MusicBrainzSearchCri
     artist: results.artists[0] ? {
       id: results.artists[0].id, name: results.artists[0].name, type: results.artists[0].type, country: results.artists[0].country,
       disambiguation: results.artists[0].disambiguation, beginDate: results.artists[0].beginDate, endDate: results.artists[0].endDate, ended: results.artists[0].ended,
-      annotation: 'Stage Mock Artist is a synthetic group used to verify the MusicBrainz artist-summary fallback order.', genres: ['Rock'], tags: ['hard rock', 'stage fixture'],
+      annotation: 'Stage Mock Artist is a synthetic group used to verify the MusicBrainz artist-summary fallback order.', genres: ['heavy metal'], tags: ['hard rock', 'stage fixture'],
     } : null,
     releaseGroup: results.releaseGroups[0] ? {
       id: results.releaseGroups[0].id, title: results.releaseGroups[0].title, primaryType: results.releaseGroups[0].primaryType,
       firstReleaseDate: results.releaseGroups[0].firstReleaseDate,
-      annotation: 'This synthetic album annotation represents MusicBrainz release-group notes.', genres: ['Rock'], tags: ['hard rock'],
+      annotation: 'This synthetic album annotation represents MusicBrainz release-group notes.', genres: ['heavy metal'], tags: ['hard rock'],
     } : null,
   };
 }
