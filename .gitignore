@@ -2,6 +2,7 @@ node_modules
 frontend/dist
 backend/dist
 backend/prisma/dev.db
+backend/prisma/backups/
 backend/prisma/*.db-journal
 .env
 frontend/certs/
