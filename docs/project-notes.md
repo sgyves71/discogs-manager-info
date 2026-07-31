@@ -2,6 +2,13 @@
 
 This document records durable product and technical decisions made during development.
 
+## MusicBrainz Integration
+
+- Artist and release-group search is available at `GET /api/musicbrainz/search?artist=...&album=...`.
+- The backend has typed result models for artist identity, disambiguation, lifespan, country, album/release-group type, first release date, release count, and artist credits.
+- No MusicBrainz key is needed for this personal, non-commercial integration. The client identifies this application with a User-Agent and schedules requests no faster than one per second, per the [MusicBrainz API guidance](https://musicbrainz.org/doc/MusicBrainz_API).
+- The endpoint uses deterministic Stage fixture data, so automated tests never call MusicBrainz.
+
 ## Purpose
 
 Discogs Manager is a personal, local-first application for cataloging a CD collection and tracking its collector value over time.
