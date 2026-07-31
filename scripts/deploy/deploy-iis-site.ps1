@@ -7,6 +7,8 @@ param(
   [switch]$SkipDatabaseBackup
 )
 
+$ErrorActionPreference = 'Stop'
+
 $projectRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $frontendDist = Join-Path $projectRoot 'frontend\dist'
 $iisTemplate = Join-Path $projectRoot 'deploy\iis\web.config'
