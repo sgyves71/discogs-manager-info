@@ -170,6 +170,8 @@ export function stripDiscogsArtistDisambiguator(value: string): string {
   return cleanDiscogsText(value).replace(/\s*\(\d+\)\s*$/u, '').trim();
 }
 
+const SEARCH_FORMATS = ['CD', 'DVD', 'Box Set'] as const;
+
 export async function searchDiscogsReleases(
   query: string,
   token?: string,
@@ -183,31 +185,35 @@ export async function searchDiscogsReleases(
     return [];
   }
 
-  try {
-    const response = await requestDiscogs(() => requestFn('https://api.discogs.com/database/search', {
-      params: {
-        ...(query.trim() ? { q: query.trim() } : {}),
-        ...(artist?.trim() ? { artist: stripDiscogsArtistDisambiguator(artist) } : {}),
-        ...(releaseTitle?.trim() ? { release_title: releaseTitle.trim() } : {}),
-        ...(catalogNumber?.trim() ? { catno: catalogNumber.trim() } : {}),
-        ...(barcode?.trim() ? { barcode: barcode.trim() } : {}),
-        type: 'release',
-        format: 'CD',
-        per_page: 100,
-      },
-      headers: {
-        ...(token ? { Authorization: `Discogs token=${token}` } : {}),
-        'User-Agent': 'DiscogsManager/0.1 +http://localhost',
-      },
-      timeout: 6000,
-    }));
+  const searchFormat = async (format: typeof SEARCH_FORMATS[number]): Promise<NormalizedDiscogsResult[]> => {
+    try {
+      const response = await requestDiscogs(() => requestFn('https://api.discogs.com/database/search', {
+        params: {
+          ...(query.trim() ? { q: query.trim() } : {}),
+          ...(artist?.trim() ? { artist: stripDiscogsArtistDisambiguator(artist) } : {}),
+          ...(releaseTitle?.trim() ? { release_title: releaseTitle.trim() } : {}),
+          ...(catalogNumber?.trim() ? { catno: catalogNumber.trim() } : {}),
+          ...(barcode?.trim() ? { barcode: barcode.trim() } : {}),
+          type: 'release',
+          format,
+          per_page: 100,
+        },
+        headers: {
+          ...(token ? { Authorization: `Discogs token=${token}` } : {}),
+          'User-Agent': 'DiscogsManager/0.1 +http://localhost',
+        },
+        timeout: 6000,
+      }));
+      const results = Array.isArray(response.data?.results) ? response.data.results : [];
+      return results.map((result: DiscogsSearchResult) => normalizeDiscogsResult(result));
+    } catch (error) {
+      console.error(`Discogs ${format} search failed:`, error);
+      return [];
+    }
+  };
 
-    const results = Array.isArray(response.data?.results) ? response.data.results : [];
-    return results.map((result: DiscogsSearchResult) => normalizeDiscogsResult(result));
-  } catch (error) {
-    console.error('Discogs search failed:', error);
-    return [];
-  }
+  const formatResults = await Promise.all(SEARCH_FORMATS.map(searchFormat));
+  return Array.from(new Map(formatResults.flat().map((result) => [result.id, result])).values());
 }
 
 export async function getDiscogsReleaseCover(

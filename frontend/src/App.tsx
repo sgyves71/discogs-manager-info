@@ -52,6 +52,13 @@ type DiscogsReleaseContext = {
   style: string | null;
 };
 
+type SearchReleaseDetailsCache = {
+  release: DiscogsResult;
+  catalogInfoLoaded?: boolean;
+  context?: DiscogsReleaseContext;
+  ebay?: { stats: EBayActiveListingStats; status: string };
+};
+
 type DiscogsReleaseImage = {
   url: string;
   thumbnailUrl: string;
@@ -61,6 +68,15 @@ type DiscogsReleaseTrack = {
   position: string | null;
   title: string;
   duration: string | null;
+};
+
+type MarketStatsBackfill = {
+  status: 'idle' | 'running' | 'complete' | 'failed';
+  processed: number;
+  stored?: number;
+  skipped: number;
+  total: number;
+  error: string | null;
 };
 
 type YouTubeVideoMatch = {
@@ -105,7 +121,7 @@ type PersonalArtistFolder = { folderPath: string; name: string; trackCount: numb
 type PersonalBrowsableAlbumFolder = { folderPath: string; name: string; album: string; trackCount: number };
 
 const RESULTS_PER_PAGE = 20;
-const COLLECTION_PAGE_SIZE = 24;
+const COLLECTION_BATCH_SIZE = 50;
 const MEDIA_CONDITIONS = [
   'Mint (M)',
   'Near Mint (NM or M-)',
@@ -132,6 +148,28 @@ function formatDiscogsText(text: string): string {
 function previewDiscogsText(text: string, wordLimit = 50): string {
   const words = text.trim().split(/\s+/u);
   return words.length > wordLimit ? `${words.slice(0, wordLimit).join(' ')}…` : text;
+}
+
+function formatDiscogsMarketPrice(value: number | null | undefined, currency: string | null | undefined): string {
+  if (value == null) return 'Not available';
+  if (currency) {
+    try {
+      return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(value);
+    } catch {
+      // Use the readable dollar fallback when a page supplies an unfamiliar currency code.
+    }
+  }
+  return `$${value.toFixed(2)}`;
+}
+
+function formatDiscogsMarketDate(value: string | null | undefined): string {
+  if (!value) return 'Not available';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'Not available' : date.toLocaleDateString();
+}
+
+function catalogCoverUrl(entry: Pick<CdEntry, 'id' | 'coverImageUpdatedAt'>): string {
+  return `/api/cds/${entry.id}/cover${entry.coverImageUpdatedAt ? `?updated=${encodeURIComponent(entry.coverImageUpdatedAt)}` : ''}`;
 }
 
 function cleanExternalSearchText(value: string): string {
@@ -162,8 +200,10 @@ function App() {
   const [collectionSearch, setCollectionSearch] = useState('');
   const [collectionPage, setCollectionPage] = useState(1);
   const [collectionTotal, setCollectionTotal] = useState(0);
+  const [collectionLoading, setCollectionLoading] = useState(false);
   const [collectionRefresh, setCollectionRefresh] = useState(0);
   const [collectionStatus, setCollectionStatus] = useState('');
+  const collectionLoadInFlightRef = useRef(false);
   const [title, setTitle] = useState('');
   const [artist, setArtist] = useState('');
   const [notes, setNotes] = useState('');
@@ -179,6 +219,7 @@ function App() {
   const [results, setResults] = useState<DiscogsResult[]>([]);
   const [coverImages, setCoverImages] = useState<Record<number, string | null>>({});
   const requestedCoverIds = useRef(new Set<number>());
+  const searchReleaseDetailsCache = useRef(new Map<number, SearchReleaseDetailsCache>());
   const [selectedRelease, setSelectedRelease] = useState<DiscogsResult | null>(null);
   const [releaseCatalogInfoStatus, setReleaseCatalogInfoStatus] = useState('');
   const [entryBeingCorrected, setEntryBeingCorrected] = useState<CdEntry | null>(null);
@@ -218,13 +259,20 @@ function App() {
   const [musicLibraryPath, setMusicLibraryPath] = useState('H:\\Music\\Rips');
   const [musicLibraryStatus, setMusicLibraryStatus] = useState('');
   const [savingMusicLibrary, setSavingMusicLibrary] = useState(false);
+  const [catalogSaveAction, setCatalogSaveAction] = useState<string | null>(null);
+  const [catalogSaveError, setCatalogSaveError] = useState<string | null>(null);
+  const catalogSaveInFlightRef = useRef(false);
+  const [marketStatsBackfill, setMarketStatsBackfill] = useState<MarketStatsBackfill | null>(null);
+  const [marketStatsBackfillStatus, setMarketStatsBackfillStatus] = useState('');
   const [ebayListingStats, setEbayListingStats] = useState<EBayActiveListingStats | null>(null);
   const [ebayListingStatus, setEbayListingStatus] = useState('');
+  const [includeEbayAuctionValues, setIncludeEbayAuctionValues] = useState(true);
   const [releaseContext, setReleaseContext] = useState<DiscogsReleaseContext | null>(null);
   const [releaseContextStatus, setReleaseContextStatus] = useState('');
   const [expandedArtistSummary, setExpandedArtistSummary] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [resultCountryFilter, setResultCountryFilter] = useState('');
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('');
   const addCardRef = useRef<HTMLDivElement>(null);
@@ -235,21 +283,36 @@ function App() {
   }
 
   useEffect(() => {
+    let cancelled = false;
+    setCollectionLoading(true);
     const timeout = window.setTimeout(() => {
-      const params = new URLSearchParams({ page: String(collectionPage), pageSize: String(COLLECTION_PAGE_SIZE) });
+      const params = new URLSearchParams({ page: String(collectionPage), pageSize: String(COLLECTION_BATCH_SIZE) });
       if (collectionSearch.trim()) params.set('q', collectionSearch.trim());
       fetch(`/api/cds?${params.toString()}`)
         .then((res) => res.json())
         .then((data: { items?: CdEntry[]; total?: number }) => {
-          setItems(data.items ?? []);
+          if (cancelled) return;
+          const nextItems = data.items ?? [];
+          setItems((current) => collectionPage === 1 ? nextItems : [
+            ...current,
+            ...nextItems.filter((nextItem) => !current.some((item) => item.id === nextItem.id)),
+          ]);
           setCollectionTotal(data.total ?? 0);
         })
         .catch(() => {
-          setItems([]);
-          setCollectionTotal(0);
+          if (!cancelled && collectionPage === 1) {
+            setItems([]);
+            setCollectionTotal(0);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            collectionLoadInFlightRef.current = false;
+            setCollectionLoading(false);
+          }
         });
     }, 250);
-    return () => window.clearTimeout(timeout);
+    return () => { cancelled = true; window.clearTimeout(timeout); };
   }, [collectionPage, collectionRefresh, collectionSearch]);
 
   useEffect(() => {
@@ -267,8 +330,18 @@ function App() {
         if (!cancelled) setMusicLibraryStatus('Unable to load the local music-library settings.');
       }
     };
+    const loadMarketStatsBackfill = async () => {
+      try {
+        const response = await fetch('/api/catalog-discogs-market-stats-backfill');
+        const data = await response.json() as MarketStatsBackfill;
+        if (!cancelled) setMarketStatsBackfill(data);
+      } catch {
+        if (!cancelled) setMarketStatsBackfillStatus('Unable to load valuation-update progress.');
+      }
+    };
     void loadLibrary();
-    const interval = window.setInterval(() => { void loadLibrary(); }, 1500);
+    void loadMarketStatsBackfill();
+    const interval = window.setInterval(() => { void loadLibrary(); void loadMarketStatsBackfill(); }, 1500);
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [activePage]);
 
@@ -284,14 +357,18 @@ function App() {
     return `Showing ${results.length} Discogs ${results.length === 1 ? 'match' : 'matches'} for “${description}”.`;
   }, [hasSearched, results.length, searchAlbumTitle, searchArtist, searchBarcode, searchCatalogNumber]);
 
-  const totalPages = Math.ceil(results.length / RESULTS_PER_PAGE);
+  const availableResultCountries = useMemo(() => Array.from(new Set(
+    results.map((result) => result.country?.trim()).filter((country): country is string => Boolean(country)),
+  )).sort((left, right) => left.localeCompare(right)), [results]);
+  const filteredResults = useMemo(() => resultCountryFilter
+    ? results.filter((result) => result.country?.trim() === resultCountryFilter)
+    : results, [resultCountryFilter, results]);
+  const totalPages = Math.ceil(filteredResults.length / RESULTS_PER_PAGE);
   const visibleResults = useMemo(() => {
     const start = (currentPage - 1) * RESULTS_PER_PAGE;
-    return results.slice(start, start + RESULTS_PER_PAGE);
-  }, [currentPage, results]);
-  const collectionTotalPages = Math.max(1, Math.ceil(collectionTotal / COLLECTION_PAGE_SIZE));
-  const collectionStart = collectionTotal ? (collectionPage - 1) * COLLECTION_PAGE_SIZE + 1 : 0;
-  const collectionEnd = Math.min(collectionPage * COLLECTION_PAGE_SIZE, collectionTotal);
+    return filteredResults.slice(start, start + RESULTS_PER_PAGE);
+  }, [currentPage, filteredResults]);
+  const hasMoreCollectionItems = items.length < collectionTotal;
 
   useEffect(() => {
     const releasesNeedingCovers = visibleResults.filter(
@@ -319,6 +396,13 @@ function App() {
       return;
     }
 
+    const cached = searchReleaseDetailsCache.current.get(selectedRelease.id)?.context;
+    if (cached) {
+      setReleaseContext(cached);
+      setReleaseContextStatus('');
+      return;
+    }
+
     let cancelled = false;
     setReleaseContext(null);
     setReleaseContextStatus('Loading Discogs artist and release information...');
@@ -331,6 +415,9 @@ function App() {
       })
       .then((context) => {
         if (!cancelled) {
+          const existing = searchReleaseDetailsCache.current.get(selectedRelease.id);
+          if (existing) existing.context = context;
+          else searchReleaseDetailsCache.current.set(selectedRelease.id, { release: selectedRelease, context });
           setReleaseContext(context);
           setReleaseContextStatus('');
         }
@@ -420,7 +507,7 @@ function App() {
       });
     }
     if (viewedEntry.hasCover) {
-      setDetailCoverImage(`/api/cds/${viewedEntry.id}/cover`);
+      setDetailCoverImage(catalogCoverUrl(viewedEntry));
     }
     if (viewedEntry.discogsId) {
       lookups.push(
@@ -475,9 +562,16 @@ function App() {
   }, [viewedEntry]);
 
   useEffect(() => {
-    if (!selectedRelease) {
+    if (!selectedRelease || !includeEbayAuctionValues) {
       setEbayListingStats(null);
       setEbayListingStatus('');
+      return;
+    }
+
+    const cached = searchReleaseDetailsCache.current.get(selectedRelease.id)?.ebay;
+    if (cached) {
+      setEbayListingStats(cached.stats);
+      setEbayListingStatus(cached.status);
       return;
     }
 
@@ -495,17 +589,21 @@ function App() {
       })
       .then((stats) => {
         if (cancelled) return;
-        setEbayListingStats(stats);
-        setEbayListingStatus(stats.sampledListingCount
+        const ebayStatus = stats.sampledListingCount
           ? ''
-          : 'No priced active eBay listings were returned for this search.');
+          : 'No priced active eBay listings were returned for this search.';
+        const existing = searchReleaseDetailsCache.current.get(selectedRelease.id);
+        if (existing) existing.ebay = { stats, status: ebayStatus };
+        else searchReleaseDetailsCache.current.set(selectedRelease.id, { release: selectedRelease, ebay: { stats, status: ebayStatus } });
+        setEbayListingStats(stats);
+        setEbayListingStatus(ebayStatus);
       })
       .catch((error: unknown) => {
         if (!cancelled) setEbayListingStatus(error instanceof Error ? error.message : 'Unable to load eBay listings.');
       });
 
     return () => { cancelled = true; };
-  }, [selectedRelease]);
+  }, [includeEbayAuctionValues, selectedRelease]);
 
   async function handleSearch(scannedBarcode?: string) {
     const searchArtistValue = searchArtist.trim();
@@ -517,6 +615,7 @@ function App() {
     setLoading(true);
     setHasSearched(true);
     setCurrentPage(1);
+    setResultCountryFilter('');
     setStatus('Searching Discogs...');
 
     try {
@@ -537,6 +636,7 @@ function App() {
       setResults(normalizedResults);
       setCoverImages({});
       requestedCoverIds.current.clear();
+      searchReleaseDetailsCache.current.clear();
       setSelectedRelease(null);
       setReleaseCatalogInfoStatus('');
       setStatus(normalizedResults.length > 0 ? 'Choose the version you own.' : 'No matches found.');
@@ -550,8 +650,38 @@ function App() {
     }
   }
 
+  function clearSearch() {
+    setSearchArtist('');
+    setSearchAlbumTitle('');
+    setSearchCatalogNumber('');
+    setSearchBarcode('');
+    setResults([]);
+    setCoverImages({});
+    requestedCoverIds.current.clear();
+    searchReleaseDetailsCache.current.clear();
+    setSelectedRelease(null);
+    setReleaseCatalogInfoStatus('');
+    setReleaseContext(null);
+    setReleaseContextStatus('');
+    setEbayListingStats(null);
+    setEbayListingStatus('');
+    setResultCountryFilter('');
+    setHasSearched(false);
+    setCurrentPage(1);
+    setStatus('Search cleared.');
+  }
+
   async function selectSearchResult(release: DiscogsResult) {
+    if (selectedRelease?.id === release.id) return;
     setExpandedArtistSummary(null);
+
+    const cached = searchReleaseDetailsCache.current.get(release.id);
+    if (cached?.catalogInfoLoaded) {
+      setSelectedRelease(cached.release);
+      setReleaseCatalogInfoStatus('Release-specific label, catalog number, and barcode loaded from this search.');
+      return;
+    }
+
     setSelectedRelease(release);
     setReleaseCatalogInfoStatus('Loading release-specific label, catalog number, and barcode...');
 
@@ -567,6 +697,13 @@ function App() {
         barcode: data.barcode ?? null,
       };
       setResults((current) => current.map((item) => item.id === release.id ? enrichedRelease : item));
+      const cachedRelease = searchReleaseDetailsCache.current.get(release.id);
+      if (cachedRelease) {
+        cachedRelease.release = enrichedRelease;
+        cachedRelease.catalogInfoLoaded = true;
+      } else {
+        searchReleaseDetailsCache.current.set(release.id, { release: enrichedRelease, catalogInfoLoaded: true });
+      }
       setSelectedRelease((current) => current?.id === release.id ? enrichedRelease : current);
       setReleaseCatalogInfoStatus('Release-specific label, catalog number, and barcode loaded.');
     } catch (error) {
@@ -635,6 +772,7 @@ function App() {
 
   async function handleSave(event: FormEvent) {
     event.preventDefault();
+    if (catalogSaveInFlightRef.current) return;
     if (entryBeingCorrected && !selectedRelease) {
       setStatus('Select the correct Discogs release before applying this correction.');
       return;
@@ -656,38 +794,51 @@ function App() {
       notes,
     };
 
-    const res = await fetch(entryBeingCorrected ? `/api/cds/${entryBeingCorrected.id}` : '/api/cds', {
-      method: entryBeingCorrected ? 'PATCH' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    catalogSaveInFlightRef.current = true;
+    setCatalogSaveAction('Saving catalog entry…');
+    try {
+      const res = await fetch(entryBeingCorrected ? `/api/cds/${entryBeingCorrected.id}` : '/api/cds', {
+        method: entryBeingCorrected ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-    if (res.ok) {
-      const created = await res.json();
-      setItems((prev) => entryBeingCorrected
-        ? prev.map((item) => item.id === created.id ? created : item)
-        : [created, ...prev]);
-      setTitle('');
-      setArtist('');
-      setNotes('');
-      setMediaCondition('Very Good Plus (VG+)');
-      setEstimatedValueOverride('15.00');
-      setSearchArtist('');
-      setSearchAlbumTitle('');
-      setSearchCatalogNumber('');
-      setSearchBarcode('');
-      setResults([]);
-      setSelectedRelease(null);
-      setReleaseCatalogInfoStatus('');
-      const wasCorrection = Boolean(entryBeingCorrected);
-      setEntryBeingCorrected(null);
-      setCollectionRefresh((current) => current + 1);
-      setStatus(wasCorrection
-        ? (created.estimatedValue != null ? 'Discogs match corrected with a refreshed value.' : 'Discogs match corrected. The old valuation was cleared.')
-        : (created.estimatedValue != null ? 'CD saved with a fresh Discogs value.' : 'CD saved locally.'));
-    } else {
-      const error = await res.json().catch(() => ({ error: 'Unable to save this CD.' }));
-      setStatus(error.error || 'Unable to save this CD.');
+      if (res.ok) {
+        const created = await res.json();
+        setItems((prev) => entryBeingCorrected
+          ? prev.map((item) => item.id === created.id ? created : item)
+          : [created, ...prev]);
+        setTitle('');
+        setArtist('');
+        setNotes('');
+        setMediaCondition('Very Good Plus (VG+)');
+        setEstimatedValueOverride('15.00');
+        setSearchArtist('');
+        setSearchAlbumTitle('');
+        setSearchCatalogNumber('');
+        setSearchBarcode('');
+        setResults([]);
+        setSelectedRelease(null);
+        setReleaseCatalogInfoStatus('');
+        const wasCorrection = Boolean(entryBeingCorrected);
+        setEntryBeingCorrected(null);
+        setCollectionRefresh((current) => current + 1);
+        setStatus(wasCorrection
+          ? (created.estimatedValue != null ? 'Discogs match corrected with a refreshed value.' : 'Discogs match corrected. The old valuation was cleared.')
+          : (created.estimatedValue != null ? 'CD saved with a fresh Discogs value.' : 'CD saved locally.'));
+      } else {
+        const error = await res.json().catch(() => ({ error: 'Unable to save this CD.' }));
+        const message = error.error || 'Unable to save this CD.';
+        setStatus(message);
+        setCatalogSaveError(message);
+      }
+    } catch {
+      const message = 'Unable to save this CD. Please try again.';
+      setStatus(message);
+      setCatalogSaveError(message);
+    } finally {
+      catalogSaveInFlightRef.current = false;
+      setCatalogSaveAction(null);
     }
   }
 
@@ -984,6 +1135,21 @@ function App() {
     }
   }
 
+  async function startMarketStatsBackfill() {
+    const confirmed = window.confirm('Update valuations visits each cataloged Discogs release page one at a time. It may take around 30 minutes for a full collection, but you can keep using the app while it runs. Start the update now?');
+    if (!confirmed) return;
+    setMarketStatsBackfillStatus('Starting valuation update...');
+    try {
+      const response = await fetch('/api/catalog-discogs-market-stats-backfill', { method: 'POST' });
+      const data = await response.json() as MarketStatsBackfill & { error?: string };
+      if (!response.ok) throw new Error(data.error || 'Unable to start the valuation update.');
+      setMarketStatsBackfill(data);
+      setMarketStatsBackfillStatus('Valuation update started. You can leave this page while it runs.');
+    } catch (error) {
+      setMarketStatsBackfillStatus(error instanceof Error ? error.message : 'Unable to start the valuation update.');
+    }
+  }
+
   function beginManualPersonalAlbumMatch() {
     if (!personalTrackNotFoundPrompt) return;
     setPersonalTrackNotFoundPrompt(null);
@@ -1054,14 +1220,16 @@ function App() {
   }
 
   async function saveEstimatedValue() {
-    if (!viewedEntry) return;
+    if (!viewedEntry || catalogSaveInFlightRef.current) return;
     const trimmedValue = estimatedValueInput.trim();
     const estimatedValue = trimmedValue === '' ? null : Number(trimmedValue);
     if (estimatedValue !== null && (!Number.isFinite(estimatedValue) || estimatedValue < 0)) {
       setEstimatedValueStatus('Enter a non-negative dollar amount, or leave the field blank to clear it.');
       return;
     }
+    catalogSaveInFlightRef.current = true;
     setEstimatedValueStatus('Saving estimated value...');
+    setCatalogSaveAction('Updating estimated value…');
     try {
       const response = await fetch(`/api/cds/${viewedEntry.id}/estimated-value`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estimatedValue }),
@@ -1074,6 +1242,9 @@ function App() {
       setEstimatedValueStatus(updated.estimatedValue != null ? 'Estimated value saved.' : 'Estimated value cleared.');
     } catch (error) {
       setEstimatedValueStatus(error instanceof Error ? error.message : 'Unable to save the estimated value.');
+    } finally {
+      catalogSaveInFlightRef.current = false;
+      setCatalogSaveAction(null);
     }
   }
 
@@ -1097,13 +1268,15 @@ function App() {
 
   async function saveCatalogDetails(event: FormEvent) {
     event.preventDefault();
-    if (!viewedEntry || !catalogDetailsForm) return;
+    if (!viewedEntry || !catalogDetailsForm || catalogSaveInFlightRef.current) return;
     const year = catalogDetailsForm.year.trim() ? Number(catalogDetailsForm.year) : null;
     if (year != null && (!Number.isInteger(year) || year < 1000 || year > 9999)) {
       setCatalogDetailsStatus('Enter a valid four-digit year, or leave it blank.');
       return;
     }
+    catalogSaveInFlightRef.current = true;
     setCatalogDetailsStatus('Saving catalog details...');
+    setCatalogSaveAction('Updating catalog details…');
     try {
       const response = await fetch(`/api/cds/${viewedEntry.id}/details`, {
         method: 'PATCH',
@@ -1119,34 +1292,66 @@ function App() {
       setCatalogDetailsStatus('Catalog details saved.');
     } catch (error) {
       setCatalogDetailsStatus(error instanceof Error ? error.message : 'Unable to save catalog details.');
+    } finally {
+      catalogSaveInFlightRef.current = false;
+      setCatalogSaveAction(null);
     }
   }
 
+  const selectedReleaseLoading = Boolean(selectedRelease && (
+    releaseCatalogInfoStatus.startsWith('Loading')
+    || releaseContextStatus.startsWith('Loading')
+    || (includeEbayAuctionValues && ebayListingStatus.startsWith('Loading'))
+  ));
+  const selectedReleasePendingTasks = [
+    releaseCatalogInfoStatus.startsWith('Loading') ? 'release-specific catalog data from Discogs' : null,
+    releaseContextStatus.startsWith('Loading') ? 'artist and release information from Discogs' : null,
+    includeEbayAuctionValues && ebayListingStatus.startsWith('Loading') ? 'current eBay auction values' : null,
+  ].filter((task): task is string => Boolean(task));
+  const uiLockMessage = catalogSaveAction || (selectedReleaseLoading ? 'Loading Selected Release…' : null);
+  const uiLockDetail = catalogSaveAction
+    ? 'Please wait while the update completes.'
+    : `Fetching ${selectedReleasePendingTasks.join(', ')}.`;
+
   return (
-    <div className="app-layout">
+    <div className="app-layout" aria-busy={Boolean(uiLockMessage)} onKeyDownCapture={(event) => {
+      if (uiLockMessage) { event.preventDefault(); event.stopPropagation(); }
+    }}>
+      {uiLockMessage ? <div className="catalog-save-overlay" role="status" aria-live="assertive"><div><strong>{uiLockMessage}</strong><span>{uiLockDetail}</span></div></div> : null}
       <aside className="app-nav" aria-label="Application navigation">
         <div className="app-brand">Discogs Manager</div>
         <button type="button" className={activePage === 'search' ? 'active' : ''} onClick={() => setActivePage('search')}>Search &amp; Scan</button>
         <button type="button" className={activePage === 'catalog' ? 'active' : ''} onClick={() => setActivePage('catalog')}>Catalog</button>
         <button type="button" className={activePage === 'library' ? 'active' : ''} onClick={() => setActivePage('library')}>Music Library</button>
       </aside>
-      <main className="app-shell">
+      <main className={`app-shell${activePage === 'catalog' ? ' catalog-shell' : ''}`}>
       {activePage === 'library' && (
         <>
           <h1>Music Library</h1>
           <p>Connect the folder containing your personally ripped and tagged music. Files remain on this PC and are only streamed locally when you choose to play one.</p>
           <div className="card music-library-card">
             <h2>Personal music folder</h2>
-            <label htmlFor="music-library-path">Library folder</label>
+            <label htmlFor="music-library-path">Library Folder</label>
             <input id="music-library-path" value={musicLibraryPath} onChange={(event) => setMusicLibraryPath(event.target.value)} placeholder="H:\\Music\\Rips" />
             <div className="form-actions">
-              <button type="button" onClick={() => void saveMusicLibrary()} disabled={savingMusicLibrary || !musicLibraryPath.trim()}>{savingMusicLibrary ? 'Saving...' : 'Save folder'}</button>
-              <button type="button" className="secondary-button" onClick={() => void scanMusicLibrary()} disabled={!musicLibrary?.rootPath || musicLibrary.scan.status === 'scanning'}>{musicLibrary?.scan.status === 'scanning' ? 'Scanning...' : 'Scan library'}</button>
+              <button type="button" onClick={() => void saveMusicLibrary()} disabled={savingMusicLibrary || !musicLibraryPath.trim()}>{savingMusicLibrary ? 'Saving...' : 'Save Folder'}</button>
+              <button type="button" className="secondary-button" onClick={() => void scanMusicLibrary()} disabled={!musicLibrary?.rootPath || musicLibrary.scan.status === 'scanning'}>{musicLibrary?.scan.status === 'scanning' ? 'Scanning...' : 'Scan Library'}</button>
             </div>
             {musicLibrary?.rootPath ? <div className="music-library-summary"><strong>Current folder:</strong> {musicLibrary.rootPath}<br /><strong>Indexed tracks:</strong> {musicLibrary.trackCount.toLocaleString()}{musicLibrary.lastScannedAt ? <> · last scan {new Date(musicLibrary.lastScannedAt).toLocaleString()}</> : null}</div> : <p className="hint">Save the folder first, then run the initial scan.</p>}
             {musicLibrary?.scan.status === 'scanning' ? <p className="hint">Scanning: {musicLibrary.scan.scannedFiles.toLocaleString()} files checked · {musicLibrary.scan.indexedFiles.toLocaleString()} indexed · {musicLibrary.scan.skippedFiles.toLocaleString()} skipped</p> : null}
             {musicLibrary?.scan.status === 'failed' ? <p className="hint">Scan failed: {musicLibrary.scan.error}</p> : null}
             {musicLibraryStatus ? <p className="hint">{musicLibraryStatus}</p> : null}
+          </div>
+          <div className="card music-library-card">
+            <h2>Catalog valuations</h2>
+            <p>Refresh Discogs Last Sold, Low, Median, and High values for every catalog entry with a Discogs release. The process runs in the background at a respectful pace.</p>
+            <div className="form-actions">
+              <button type="button" onClick={() => void startMarketStatsBackfill()} disabled={marketStatsBackfill?.status === 'running'}>{marketStatsBackfill?.status === 'running' ? 'Updating Valuations...' : 'Update Valuations'}</button>
+            </div>
+            {marketStatsBackfill?.status === 'running' ? <p className="hint">Progress: {marketStatsBackfill.processed.toLocaleString()} / {marketStatsBackfill.total.toLocaleString()} releases checked Â· {marketStatsBackfill.stored ?? 0} with market data Â· {marketStatsBackfill.skipped.toLocaleString()} unavailable</p> : null}
+            {marketStatsBackfill?.status === 'complete' ? <p className="hint">Last update complete: {marketStatsBackfill.processed.toLocaleString()} releases checked Â· {marketStatsBackfill.stored ?? 0} with market data Â· {marketStatsBackfill.skipped.toLocaleString()} unavailable.</p> : null}
+            {marketStatsBackfill?.status === 'failed' ? <p className="hint">Valuation update failed: {marketStatsBackfill.error || 'Unknown error.'}</p> : null}
+            {marketStatsBackfillStatus ? <p className="hint">{marketStatsBackfillStatus}</p> : null}
           </div>
         </>
       )}
@@ -1185,7 +1390,7 @@ function App() {
                 setHasSearched(false);
                 setCurrentPage(1);
               }}
-              placeholder="Album title"
+              placeholder="Album Title"
             />
             <input
               value={searchCatalogNumber}
@@ -1194,7 +1399,7 @@ function App() {
                 setHasSearched(false);
                 setCurrentPage(1);
               }}
-              placeholder="Catalog number"
+              placeholder="Catalog Number"
             />
             <input
               value={searchBarcode}
@@ -1206,7 +1411,11 @@ function App() {
               placeholder="Barcode"
             />
           </div>
-          <button type="submit" disabled={loading || (!searchArtist.trim() && !searchAlbumTitle.trim() && !searchCatalogNumber.trim() && !searchBarcode.trim())}>{loading ? 'Searching...' : 'Look up'}</button>
+          <div className="search-actions">
+            <button type="submit" disabled={loading || (!searchArtist.trim() && !searchAlbumTitle.trim() && !searchCatalogNumber.trim() && !searchBarcode.trim())}>{loading ? 'Searching...' : 'Look Up'}</button>
+            <button type="button" className="secondary-button" onClick={clearSearch} disabled={loading}>Clear</button>
+            <label className="ebay-search-toggle"><input type="checkbox" checked={includeEbayAuctionValues} onChange={(event) => setIncludeEbayAuctionValues(event.target.checked)} /> Include Current eBay Auction Values</label>
+          </div>
         </form>
 
         <div className="search-section-divider" />
@@ -1214,7 +1423,7 @@ function App() {
           <h3>Barcode scanner</h3>
           <p className="hint">Use your phone camera to fill the barcode search field automatically.</p>
           <button type="button" onClick={() => { setScannerStatus('Opening camera...'); setScannerOpen(true); }}>
-            Scan barcode
+            Scan Barcode
           </button>
         </section>
 
@@ -1222,7 +1431,7 @@ function App() {
           <div className="scanner-dialog" role="dialog" aria-modal="true" aria-label="Barcode scanner">
             <video ref={scannerVideoRef} className="scanner-video" muted playsInline />
             <p>{scannerStatus}</p>
-            <button type="button" onClick={() => setScannerOpen(false)}>Cancel scan</button>
+            <button type="button" onClick={() => setScannerOpen(false)}>Cancel Scan</button>
           </div>
         )}
 
@@ -1233,6 +1442,20 @@ function App() {
             <div className="search-criteria">
               <div><strong>Artist Name:</strong> {searchArtist || 'Any artist'}</div>
               <div><strong>Album Title:</strong> {searchAlbumTitle || 'Any album title'}</div>
+            </div>
+            <div className="result-filter">
+              <label>
+                Country
+                <select
+                  aria-label="Filter search results by country"
+                  value={resultCountryFilter}
+                  disabled={availableResultCountries.length < 2}
+                  onChange={(event) => { setResultCountryFilter(event.target.value); setCurrentPage(1); }}
+                >
+                  <option value="">All countries</option>
+                  {availableResultCountries.map((country) => <option key={country} value={country}>{country}</option>)}
+                </select>
+              </label>
             </div>
             <div className="results-list">
             {visibleResults.map((release) => {
@@ -1264,10 +1487,10 @@ function App() {
                   <strong className="result-artist">{release.artist || 'Unknown artist'}</strong>
                   <div className="result-title">{release.title || 'Untitled release'}</div>
                   <div className="result-details">
-                    <div><strong>Release year:</strong> {release.year ?? 'Unknown'}</div>
-                    <div><strong>{selectedRelease?.id === release.id ? 'Release label:' : 'Search-result label:'}</strong> {release.label ?? 'Unknown'}</div>
+                    <div><strong>Release Year:</strong> {release.year ?? 'Unknown'}</div>
+                    <div><strong>{selectedRelease?.id === release.id ? 'Release Label:' : 'Search-Result Label:'}</strong> {release.label ?? 'Unknown'}</div>
                     <div><strong>Country:</strong> {release.country ?? 'Unknown'}</div>
-                    <div><strong>Catalog number:</strong> {release.catalogNumber ?? 'Not listed'}</div>
+                    <div><strong>Catalog Number:</strong> {release.catalogNumber ?? 'Not listed'}</div>
                     {release.barcode ? <div><strong>Barcode:</strong> {release.barcode}</div> : null}
                     <div><strong>Format:</strong> {release.format || 'Unknown'}</div>
                     {selectedRelease?.id === release.id && releaseContext?.genre ? <div><strong>Genre:</strong> {releaseContext.genre}</div> : null}
@@ -1276,47 +1499,37 @@ function App() {
                   {selectedRelease?.id === release.id && (
                     <>
                       {releaseCatalogInfoStatus ? <p className="hint">{releaseCatalogInfoStatus}</p> : null}
-                      <div className="price-suggestions" aria-live="polite">
-                        <strong>eBay active listings:</strong>
+                      {includeEbayAuctionValues && <div className="price-suggestions" aria-live="polite">
+                        <strong>eBay Active Listings:</strong>
                         {ebayListingStatus ? <div>{ebayListingStatus}</div> : null}
                         {ebayListingStats?.sampledListingCount ? (
                           <div className={`ebay-listing-results ${ebayListingStats.searchMethod}`}>
-                            <div><strong>Matching listings:</strong> {ebayListingStats.listingCount}</div>
-                            <div className={`ebay-search-method ${ebayListingStats.searchMethod}`}><strong>Search used:</strong>{' '}
+                            <div><strong>Matching Listings:</strong> {ebayListingStats.listingCount}</div>
+                            <div className={`ebay-search-method ${ebayListingStats.searchMethod}`}><strong>Search Used:</strong>{' '}
                               {ebayListingStats.searchMethod === 'catalogNumber' ? 'Discogs catalog number' : 'artist and album title'}
                             </div>
-                            <div><strong>Priced sample:</strong> {ebayListingStats.sampledListingCount} active listings</div>
-                            <div><strong>Low / average / high:</strong>{' '}
+                            <div><strong>Priced Sample:</strong> {ebayListingStats.sampledListingCount} active listings</div>
+                            <div><strong>Low / Average / High:</strong>{' '}
                               {ebayListingStats.currency || '$'} {ebayListingStats.lowestPrice?.toFixed(2)} /{' '}
                               {ebayListingStats.averagePrice?.toFixed(2)} / {ebayListingStats.highestPrice?.toFixed(2)}
                             </div>
                           </div>
                         ) : null}
                         {ebayListingStats ? <div className="price-note">Current asking prices only; not eBay sold-price history.</div> : null}
-                      </div>
+                      </div>}
                       <div className="release-context-card" aria-live="polite">
                         {releaseContextStatus ? <p>{releaseContextStatus}</p> : null}
-                        {releaseContext && (
+                        {releaseContext && releaseContext.descriptionSource !== 'artist' && (
                           <>
-                            {releaseContext.artistProfile && releaseContext.descriptionSource !== 'artist' && (
-                              <div>
-                                <strong>Artist summary</strong>
-                                <p className="artist-summary-preview"><span className="artist-summary-desktop">{formatDiscogsText(releaseContext.artistProfile)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(releaseContext.artistProfile))}</span></p>
-                                <button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(releaseContext.artistProfile!))}>Show all</button>
-                              </div>
-                            )}
                             <div>
                               <strong>
                                 {releaseContext.descriptionSource === 'release'
-                                  ? 'Release notes'
+                                  ? 'Release Notes'
                                   : releaseContext.descriptionSource === 'album'
-                                    ? 'Album notes'
-                                    : releaseContext.descriptionSource === 'artist'
-                                      ? 'Artist summary'
-                                      : 'Discogs information'}
+                                    ? 'Album Notes'
+                                    : 'Discogs Information'}
                               </strong>
-                              <p className={releaseContext.descriptionSource === 'artist' ? 'artist-summary-preview' : undefined}>{releaseContext.description ? <>{releaseContext.descriptionSource === 'artist' ? <><span className="artist-summary-desktop">{formatDiscogsText(releaseContext.description)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(releaseContext.description))}</span></> : formatDiscogsText(releaseContext.description)}</> : 'Discogs does not provide release, album, or artist notes for this selection.'}</p>
-                              {releaseContext.descriptionSource === 'artist' && releaseContext.description ? <button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(releaseContext.description!))}>Show all</button> : null}
+                              <p>{releaseContext.description ? formatDiscogsText(releaseContext.description) : 'Discogs does not provide release or album notes for this selection.'}</p>
                             </div>
                           </>
                         )}
@@ -1353,7 +1566,7 @@ function App() {
               <strong>{selectedRelease.artist} — {selectedRelease.title}</strong>
               <div>{selectedRelease.format || 'Format unknown'}{selectedRelease.year ? ` • ${selectedRelease.year}` : ''}</div>
               <div><strong>Label:</strong> {selectedRelease.label || 'Not listed'}</div>
-              <div><strong>Catalog number:</strong> {selectedRelease.catalogNumber || 'Not listed'}</div>
+              <div><strong>Catalog Number:</strong> {selectedRelease.catalogNumber || 'Not listed'}</div>
               {selectedRelease.barcode ? <div><strong>Barcode:</strong> {selectedRelease.barcode}</div> : null}
               {releaseContext?.genre ? <div><strong>Genre:</strong> {releaseContext.genre}</div> : null}
               {releaseContext?.style ? <div><strong>Style:</strong> {releaseContext.style}</div> : null}
@@ -1368,13 +1581,13 @@ function App() {
           <label>Notes</label>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Condition, purchase details, etc." />
 
-          <label>Media condition</label>
+          <label>Media Condition</label>
           <select value={mediaCondition} onChange={(e) => setMediaCondition(e.target.value)}>
             <option value="">Not specified</option>
             {MEDIA_CONDITIONS.map((condition) => <option key={condition} value={condition}>{condition}</option>)}
           </select>
 
-          <label>Estimated value</label>
+          <label>Estimated Value</label>
           <input
             type="number"
             min="0"
@@ -1385,8 +1598,8 @@ function App() {
           />
 
           {status ? <p className="status">{status}</p> : null}
-          {entryBeingCorrected ? <div className="form-actions"><button type="button" className="secondary-button" onClick={cancelMatchCorrection}>Cancel correction</button></div> : null}
-          <div className="form-actions"><button type="submit">{entryBeingCorrected ? 'Apply corrected match' : 'Add to Catalog'}</button></div>
+          {entryBeingCorrected ? <div className="form-actions"><button type="button" className="secondary-button" onClick={cancelMatchCorrection}>Cancel Correction</button></div> : null}
+          <div className="form-actions"><button type="submit" disabled={Boolean(catalogSaveAction)}>{entryBeingCorrected ? 'Apply Corrected Match' : 'Add to Catalog'}</button></div>
         </form>
           </>
         ) : <p className="hint">Select a release result to review it and add it to your catalog.</p>}
@@ -1401,18 +1614,21 @@ function App() {
         items={items}
         search={collectionSearch}
         total={collectionTotal}
-        start={collectionStart}
-        end={collectionEnd}
-        page={collectionPage}
-        totalPages={collectionTotalPages}
+        isLoading={collectionLoading}
+        hasMoreItems={hasMoreCollectionItems}
         status={collectionStatus}
         hasOpenDetail={Boolean(viewedEntry)}
-        onSearchChange={(value) => { setCollectionSearch(value); setCollectionPage(1); }}
+        onSearchChange={(value) => { collectionLoadInFlightRef.current = false; setCollectionSearch(value); setCollectionPage(1); setItems([]); setCollectionTotal(0); }}
         onOpenDetail={setViewedEntry}
         onChangeAssociation={beginMatchCorrection}
         onSearchEbay={(item) => { void openEbaySearch(item); }}
         onRemove={(item) => { void removeCatalogEntry(item); }}
-        onPageChange={setCollectionPage}
+        onLoadMore={() => {
+          if (!collectionLoading && hasMoreCollectionItems && !collectionLoadInFlightRef.current) {
+            collectionLoadInFlightRef.current = true;
+            setCollectionPage((current) => current + 1);
+          }
+        }}
       >
         {false && <>
         <div className="collection-toolbar">
@@ -1422,10 +1638,10 @@ function App() {
               setCollectionSearch(event.target.value);
               setCollectionPage(1);
             }}
-            placeholder="Search artist, album, catalog #, or barcode"
+              placeholder="Search Artist, Album, Catalog #, or Barcode"
             aria-label="Search collection"
           />
-          <span>{collectionTotal ? `Showing ${collectionStart}–${collectionEnd} of ${collectionTotal}` : 'No CDs found'}</span>
+          <span>{collectionTotal ? `Showing ${items.length} of ${collectionTotal}` : 'No CDs found'}</span>
         </div>
         </>}
         {false && <>
@@ -1459,59 +1675,71 @@ function App() {
                 {viewedEntry.discogsUri ? <a href={`https://www.discogs.com${viewedEntry.discogsUri}`} target="_blank" rel="noreferrer">View on Discogs</a> : null}
               </div>
               <div className="collection-detail-controls">
-                <details className="detail-action-menu">
+                <details className="detail-action-menu" onMouseLeave={(event) => event.currentTarget.removeAttribute('open')}>
                   <summary aria-label={`Actions for ${viewedEntry.artist} — ${viewedEntry.title}`} title="Catalog actions">•••</summary>
                   <div className="detail-action-menu-items">
-                    <button type="button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); void openEbaySearch(viewedEntry); }}>Open eBay listings</button>
+                    <button type="button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); void openEbaySearch(viewedEntry); }}>Open eBay Listings</button>
                     <button type="button" className="secondary-button" disabled={!viewedEntry.discogsId} onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); openDiscogsMarketplace(viewedEntry); }}>Open Discogs Marketplace</button>
-                    <button type="button" className="secondary-button" disabled={!viewedEntry.discogsId && !viewedEntry.discogsUri} onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); openDiscogsRelease(viewedEntry); }}>Open Discogs release</button>
-                    <button type="button" className="secondary-button" disabled={!viewedEntry.discogsId} onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); void loadDetailImages(); }}>{showDetailImages ? 'Hide release images' : 'Show all release images'}</button>
-                    <button type="button" className="secondary-button" disabled={!viewedEntry.discogsId} onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); void openTracklist(); }}>Show tracklist</button>
-                    <button type="button" className="secondary-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); beginCatalogDetailsEdit(); }}>Edit catalog details</button>
-                    <button type="button" className="secondary-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); beginEstimatedValueEdit(); }}>Update estimated value</button>
-                    <button type="button" className="secondary-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); beginMatchCorrection(viewedEntry); }}>Correct Discogs match</button>
-                    <button type="button" className="danger-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); void removeCatalogEntry(viewedEntry); }}>Remove entry</button>
+                    <button type="button" className="secondary-button" disabled={!viewedEntry.discogsId && !viewedEntry.discogsUri} onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); openDiscogsRelease(viewedEntry); }}>Open Discogs Release</button>
+                    <button type="button" className="secondary-button" disabled={!viewedEntry.discogsId} onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); void loadDetailImages(); }}>{showDetailImages ? 'Hide Release Images' : 'Show All Release Images'}</button>
+                    <button type="button" className="secondary-button" disabled={!viewedEntry.discogsId} onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); void openTracklist(); }}>Show Tracklist</button>
+                    <button type="button" className="secondary-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); beginCatalogDetailsEdit(); }}>Edit Catalog Details</button>
+                    <button type="button" className="secondary-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); beginEstimatedValueEdit(); }}>Update Estimated Value</button>
+                    <button type="button" className="secondary-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); beginMatchCorrection(viewedEntry); }}>Correct Discogs Match</button>
+                    <button type="button" className="danger-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); void removeCatalogEntry(viewedEntry); }}>Remove Entry</button>
                   </div>
                 </details>
-                <button type="button" className="secondary-button" onClick={() => setViewedEntry(null)}>Close details</button>
+                <button type="button" className="secondary-button" onClick={() => setViewedEntry(null)}>Close Details</button>
               </div>
             </div>
             {detailStatus ? <p className="hint">{detailStatus}</p> : null}
             <div className="detail-grid">
               <div><strong>Label:</strong> {viewedEntry.label || 'Not listed'}</div>
               <div><strong>Country:</strong> {viewedEntry.country || 'Not listed'}</div>
-              <div><strong>Catalog number:</strong> {viewedEntry.catalogNumber || 'Not listed'}</div>
+              <div><strong>Catalog Number:</strong> {viewedEntry.catalogNumber || 'Not listed'}</div>
               {viewedEntry.barcode ? <div><strong>Barcode:</strong> {viewedEntry.barcode}</div> : null}
               {viewedEntry.genre ? <div><strong>Genre:</strong> {viewedEntry.genre}</div> : null}
               {viewedEntry.style ? <div><strong>Style:</strong> {viewedEntry.style}</div> : null}
-              <div><strong>Media condition:</strong> {viewedEntry.mediaCondition || 'Not specified'}</div>
-              <div><strong>Estimated value:</strong> {viewedEntry.estimatedValue != null ? `$${viewedEntry.estimatedValue.toFixed(2)}` : 'Not set'}</div>
+              <div><strong>Media Condition:</strong> {viewedEntry.mediaCondition || 'Not specified'}</div>
+              <div><strong>Estimated Value:</strong> {viewedEntry.estimatedValue != null ? `$${viewedEntry.estimatedValue.toFixed(2)}` : 'Not set'}</div>
+            </div>
+            <div className="detail-section discogs-market-stats">
+              <strong>Discogs Market Statistics</strong>
+              {viewedEntry.discogsMarketStatsCheckedAt ? <>
+                <div className="detail-grid">
+                  <div><strong>Last Sold:</strong> {formatDiscogsMarketDate(viewedEntry.discogsLastSoldAt)}</div>
+                  <div><strong>Low:</strong> {formatDiscogsMarketPrice(viewedEntry.discogsMarketLow, viewedEntry.discogsMarketCurrency)}</div>
+                  <div><strong>Median:</strong> {formatDiscogsMarketPrice(viewedEntry.discogsMarketMedian, viewedEntry.discogsMarketCurrency)}</div>
+                  <div><strong>High:</strong> {formatDiscogsMarketPrice(viewedEntry.discogsMarketHigh, viewedEntry.discogsMarketCurrency)}</div>
+                </div>
+                <p className="hint">Last checked: {formatDiscogsMarketDate(viewedEntry.discogsMarketStatsCheckedAt)}</p>
+              </> : <p className="hint">No recent sale detail found.</p>}
             </div>
             {editingCatalogDetails && catalogDetailsForm ? <form className="detail-section catalog-details-editor" onSubmit={saveCatalogDetails}>
-              <strong>Edit catalog details</strong>
+              <strong>Edit Catalog Details</strong>
               <div className="catalog-details-fields">
                 <label>Artist<input value={catalogDetailsForm.artist} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, artist: event.target.value })} /></label>
-                <label>Album title<input value={catalogDetailsForm.title} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, title: event.target.value })} /></label>
+                <label>Album Title<input value={catalogDetailsForm.title} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, title: event.target.value })} /></label>
                 <label>Year<input type="number" min="1000" max="9999" value={catalogDetailsForm.year} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, year: event.target.value })} /></label>
                 <label>Country<input value={catalogDetailsForm.country} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, country: event.target.value })} /></label>
                 <label>Label<input value={catalogDetailsForm.label} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, label: event.target.value })} /></label>
                 <label>Format<input value={catalogDetailsForm.format} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, format: event.target.value })} /></label>
-                <label>Catalog number<input value={catalogDetailsForm.catalogNumber} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, catalogNumber: event.target.value })} /></label>
+                <label>Catalog Number<input value={catalogDetailsForm.catalogNumber} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, catalogNumber: event.target.value })} /></label>
                 <label>Barcode<input value={catalogDetailsForm.barcode} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, barcode: event.target.value })} /></label>
-                <label>Media condition<select value={catalogDetailsForm.mediaCondition} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, mediaCondition: event.target.value })}><option value="">Not specified</option>{MEDIA_CONDITIONS.map((condition) => <option key={condition} value={condition}>{condition}</option>)}</select></label>
+                <label>Media Condition<select value={catalogDetailsForm.mediaCondition} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, mediaCondition: event.target.value })}><option value="">Not specified</option>{MEDIA_CONDITIONS.map((condition) => <option key={condition} value={condition}>{condition}</option>)}</select></label>
               </div>
               <label>Notes<textarea value={catalogDetailsForm.notes} onChange={(event) => setCatalogDetailsForm({ ...catalogDetailsForm, notes: event.target.value })} /></label>
-              <div className="form-actions"><button type="submit">Save details</button><button type="button" className="secondary-button" onClick={() => { setEditingCatalogDetails(false); setCatalogDetailsForm(null); setCatalogDetailsStatus(''); }}>Cancel</button></div>
+              <div className="form-actions"><button type="submit" disabled={Boolean(catalogSaveAction)}>Save Details</button><button type="button" className="secondary-button" disabled={Boolean(catalogSaveAction)} onClick={() => { setEditingCatalogDetails(false); setCatalogDetailsForm(null); setCatalogDetailsStatus(''); }}>Cancel</button></div>
               {catalogDetailsStatus ? <p className="hint">{catalogDetailsStatus}</p> : null}
             </form> : null}
-            {editingEstimatedValue ? <div className="detail-section estimated-value-editor"><strong>Update estimated value</strong><div className="inline-form"><input type="number" min="0" step="0.01" value={estimatedValueInput} onChange={(event) => setEstimatedValueInput(event.target.value)} placeholder="Leave blank to clear" aria-label="Estimated value" /><button type="button" onClick={() => void saveEstimatedValue()}>Save value</button><button type="button" className="secondary-button" onClick={() => { setEditingEstimatedValue(false); setEstimatedValueStatus(''); }}>Cancel</button></div>{estimatedValueStatus ? <p className="hint">{estimatedValueStatus}</p> : null}</div> : null}
-            {viewedEntry.notes ? <div className="detail-section"><strong>Your notes</strong><p>{viewedEntry.notes}</p></div> : null}
-            {detailContext?.artistProfile && detailContext.descriptionSource !== 'artist' ? <div className="detail-section"><strong>Artist summary</strong><p className="artist-summary-preview"><span className="artist-summary-desktop">{formatDiscogsText(detailContext.artistProfile)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(detailContext.artistProfile))}</span></p><button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(detailContext.artistProfile!))}>Show all</button></div> : null}
-            {detailContext ? <div className="detail-section"><strong>{detailContext.descriptionSource === 'release' ? 'Release notes' : detailContext.descriptionSource === 'album' ? 'Album notes' : 'Artist summary'}</strong><p className={detailContext.descriptionSource === 'artist' ? 'artist-summary-preview' : undefined}>{detailContext.description ? <>{detailContext.descriptionSource === 'artist' ? <><span className="artist-summary-desktop">{formatDiscogsText(detailContext.description)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(detailContext.description))}</span></> : formatDiscogsText(detailContext.description)}</> : 'No additional Discogs notes are available.'}</p>{detailContext.descriptionSource === 'artist' && detailContext.description ? <button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(detailContext.description!))}>Show all</button> : null}</div> : null}
+            {editingEstimatedValue ? <div className="detail-section estimated-value-editor"><strong>Update estimated value</strong><div className="inline-form"><input type="number" min="0" step="0.01" disabled={Boolean(catalogSaveAction)} value={estimatedValueInput} onChange={(event) => setEstimatedValueInput(event.target.value)} placeholder="Leave blank to clear" aria-label="Estimated value" /><button type="button" disabled={Boolean(catalogSaveAction)} onClick={() => void saveEstimatedValue()}>Save Value</button><button type="button" className="secondary-button" disabled={Boolean(catalogSaveAction)} onClick={() => { setEditingEstimatedValue(false); setEstimatedValueStatus(''); }}>Cancel</button></div>{estimatedValueStatus ? <p className="hint">{estimatedValueStatus}</p> : null}</div> : null}
+            {viewedEntry.notes ? <div className="detail-section"><strong>Your Notes</strong><p>{viewedEntry.notes}</p></div> : null}
+            {detailContext?.artistProfile && detailContext.descriptionSource !== 'artist' ? <div className="detail-section"><strong>Artist summary</strong><p className="artist-summary-preview"><span className="artist-summary-desktop">{formatDiscogsText(detailContext.artistProfile)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(detailContext.artistProfile))}</span></p><button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(detailContext.artistProfile!))}>Show All</button></div> : null}
+            {detailContext ? <div className="detail-section"><strong>{detailContext.descriptionSource === 'release' ? 'Release notes' : detailContext.descriptionSource === 'album' ? 'Album notes' : 'Artist summary'}</strong><p className={detailContext.descriptionSource === 'artist' ? 'artist-summary-preview' : undefined}>{detailContext.description ? <>{detailContext.descriptionSource === 'artist' ? <><span className="artist-summary-desktop">{formatDiscogsText(detailContext.description)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(detailContext.description))}</span></> : formatDiscogsText(detailContext.description)}</> : 'No additional Discogs notes are available.'}</p>{detailContext.descriptionSource === 'artist' && detailContext.description ? <button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(detailContext.description!))}>Show All</button> : null}</div> : null}
             {detailEbayStats?.sampledListingCount ? <div className={`detail-section ebay-listing-results ${detailEbayStats.searchMethod}`}><strong>eBay active listings</strong><p>{detailEbayStats.listingCount} listings found • {detailEbayStats.searchMethod === 'catalogNumber' ? 'catalog number match' : 'artist/title CD search'} • Low / average / high: {detailEbayStats.currency || '$'} {detailEbayStats.lowestPrice?.toFixed(2)} / {detailEbayStats.averagePrice?.toFixed(2)} / {detailEbayStats.highestPrice?.toFixed(2)}</p></div> : null}
             {showDetailImages ? (
               <div className="detail-section release-image-gallery">
-                <strong>Release images</strong>
+                <strong>Release Images</strong>
                 {detailImagesStatus ? <p>{detailImagesStatus}</p> : null}
                 {detailImages.length ? <div className="release-image-grid">
                   {detailImages.map((image, index) => (
@@ -1529,7 +1757,7 @@ function App() {
                 <section className="tracklist-popover" role="dialog" aria-modal="true" aria-label={`Tracklist for ${viewedEntry.title}`}>
                   <div className="tracklist-header">
                     <div><h3>Tracklist</h3><p>{viewedEntry.artist} — {viewedEntry.title}</p></div>
-                    <button type="button" className="secondary-button" onClick={() => setShowTracklist(false)}>Back to details</button>
+                    <button type="button" className="secondary-button" onClick={() => setShowTracklist(false)}>Back to Details</button>
                   </div>
                   {detailTracksStatus ? <p className="hint">{detailTracksStatus}</p> : null}
                   {personalMusicStatus ? <p className="hint">{personalMusicStatus}</p> : null}
@@ -1546,7 +1774,7 @@ function App() {
                               {video.channelTitle ? <span>{video.channelTitle}</span> : null}
                               {video.durationSeconds ? <span>{Math.floor(video.durationSeconds / 60)}:{String(video.durationSeconds % 60).padStart(2, '0')}</span> : null}
                             </div>
-                            <button type="button" onClick={() => void chooseYouTubeMatch(youTubeCandidates.track, video)}>Use this match</button>
+                            <button type="button" onClick={() => void chooseYouTubeMatch(youTubeCandidates.track, video)}>Use This Match</button>
                           </div>
                         ))}
                       </div>
@@ -1582,9 +1810,9 @@ function App() {
                           <span className="track-title">{track.title}</span>
                           {track.duration ? <span className="track-duration">{track.duration}</span> : null}
                           <div className="track-actions">
-                            <button type="button" onClick={() => personalMatch ? playLocalCopy(personalMatch) : void findPersonalCopy(track)}>{personalMatch ? 'Play local copy' : 'Find personal copy'}</button>
-                            {savedMatch ? <button type="button" onClick={() => { setLocalAudioPlayer(null); setYouTubePlayer({ videoId: savedMatch.videoId, title: savedMatch.videoTitle, watchUrl: savedMatch.videoUrl }); }}>Play saved match</button> : null}
-                            <button type="button" className="secondary-button" onClick={() => void findYouTubeMatches(track)}>{savedMatch ? 'Change match' : 'Find matches'}</button>
+                            <button type="button" onClick={() => personalMatch ? playLocalCopy(personalMatch) : void findPersonalCopy(track)}>{personalMatch ? 'Play Local Copy' : 'Find Personal Copy'}</button>
+                            {savedMatch ? <button type="button" onClick={() => { setLocalAudioPlayer(null); setYouTubePlayer({ videoId: savedMatch.videoId, title: savedMatch.videoTitle, watchUrl: savedMatch.videoUrl }); }}>Play Saved Match</button> : null}
+                            <button type="button" className="secondary-button" onClick={() => void findYouTubeMatches(track)}>{savedMatch ? 'Change Match' : 'Find Matches'}</button>
                             <button type="button" className="secondary-button" onClick={() => openTrackOnYouTube(track)}>Search</button>
                           </div>
                         </li>
@@ -1638,11 +1866,11 @@ function App() {
                     <button type="button" onClick={(event) => {
                       event.currentTarget.closest('details')?.removeAttribute('open');
                       if (!viewedEntry) setViewedEntry(item);
-                    }}>View details</button>
+                    }}>View Details</button>
                     <button type="button" className="secondary-button" onClick={(event) => {
                       event.currentTarget.closest('details')?.removeAttribute('open');
                       beginMatchCorrection(item);
-                    }}>Change association</button>
+                    }}>Change Association</button>
                     <button type="button" className="secondary-button" onClick={(event) => {
                       event.currentTarget.closest('details')?.removeAttribute('open');
                       void openEbaySearch(item);
@@ -1650,28 +1878,29 @@ function App() {
                     <button type="button" className="danger-button" onClick={(event) => {
                       event.currentTarget.closest('details')?.removeAttribute('open');
                       void removeCatalogEntry(item);
-                    }}>Remove entry</button>
+                    }}>Remove Entry</button>
                   </div>
                 </details>
               </div>
             </li>
           ))}
         </ul>
-        {collectionTotalPages > 1 && (
+        {false && collectionTotal > items.length && (
           <nav className="pagination collection-pagination" aria-label="Collection pages">
             <button type="button" onClick={() => setCollectionPage((page) => page - 1)} disabled={collectionPage === 1}>Previous</button>
-            <span>Page {collectionPage} of {collectionTotalPages}</span>
-            <button type="button" onClick={() => setCollectionPage((page) => page + 1)} disabled={collectionPage === collectionTotalPages}>Next</button>
+            <span>Continuous loading is enabled.</span>
+            <button type="button" onClick={() => setCollectionPage((page) => page + 1)}>Next</button>
           </nav>
         )}
       </>}
       </CatalogPage>
       {localAudioPlayer ? <LocalAudioPlayer {...localAudioPlayer} onClose={() => setLocalAudioPlayer(null)} onError={() => setPersonalMusicStatus('This local file could not be played. It may have been moved or renamed since the last scan; open Music Library and scan again.')} /> : null}
       {expandedArtistSummary ? <ArtistSummaryDialog summary={expandedArtistSummary} onClose={() => setExpandedArtistSummary(null)} /> : null}
-      {personalTrackNotFoundPrompt ? <div className="artist-summary-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPersonalTrackNotFoundPrompt(null); }}><section className="artist-summary-dialog" role="dialog" aria-modal="true" aria-label="Personal music match not found"><div className="artist-summary-dialog-header"><h2>No personal match found</h2><button type="button" className="secondary-button" onClick={() => setPersonalTrackNotFoundPrompt(null)}>No</button></div><p>No tagged local match was found for <strong>{personalTrackNotFoundPrompt.title}</strong>. If you believe the track is in your scanned music collection, you can make a manual album-folder match.</p><div className="form-actions"><button type="button" onClick={beginManualPersonalAlbumMatch}>Yes, make manual match</button><button type="button" className="secondary-button" onClick={() => setPersonalTrackNotFoundPrompt(null)}>No, not now</button></div></section></div> : null}
-      {showPersonalFolderMapping ? <div className="artist-summary-overlay" role="presentation"><section className="artist-summary-dialog" role="dialog" aria-modal="true" aria-label="Manual personal album match"><div className="artist-summary-dialog-header"><h2>Manual personal album match</h2><button type="button" className="secondary-button" onClick={() => setShowPersonalFolderMapping(false)}>Cancel</button></div>{personalAlbumValidation === 'invalid' ? <><p>Cannot make one-to-one track associations for this folder.</p><div className="form-actions"><button type="button" onClick={() => setShowPersonalFolderMapping(false)}>OK</button></div></> : <><p>Select the base artist folder and then the album folder. The app will validate every track before enabling Save.</p><label>Artist folder<select value={selectedPersonalArtistFolderPath} onChange={(event) => void browsePersonalAlbumFolders(event.target.value)} disabled={!personalArtistFolders}><option value="">{personalArtistFolders ? 'Choose artist folder' : 'Loading artist folders...'}</option>{personalArtistFolders?.map((folder) => <option key={folder.folderPath} value={folder.folderPath}>{folder.name} ({folder.trackCount} tracks)</option>)}</select></label><label>Album folder<select value={selectedPersonalAlbumFolderPath} onChange={(event) => void validatePersonalAlbumFolder(event.target.value)} disabled={!selectedPersonalArtistFolderPath || !personalBrowsableAlbumFolders || personalAlbumValidation === 'checking'}><option value="">{selectedPersonalArtistFolderPath ? 'Choose album folder' : 'Choose an artist first'}</option>{personalBrowsableAlbumFolders?.map((folder) => <option key={folder.folderPath} value={folder.folderPath}>{folder.album || folder.name} ({folder.trackCount} tracks)</option>)}</select></label>{personalAlbumMappingStatus ? <p className="hint">{personalAlbumMappingStatus}</p> : null}<div className="form-actions"><button type="button" disabled={personalAlbumValidation !== 'valid'} onClick={() => void savePersonalAlbumFolder(selectedPersonalAlbumFolderPath)}>Save mapping</button><button type="button" className="secondary-button" onClick={() => setShowPersonalFolderMapping(false)}>Cancel</button></div></>}</section></div> : null}
+      {personalTrackNotFoundPrompt ? <div className="artist-summary-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPersonalTrackNotFoundPrompt(null); }}><section className="artist-summary-dialog" role="dialog" aria-modal="true" aria-label="Personal music match not found"><div className="artist-summary-dialog-header"><h2>No personal match found</h2><button type="button" className="secondary-button" onClick={() => setPersonalTrackNotFoundPrompt(null)}>No</button></div><p>No tagged local match was found for <strong>{personalTrackNotFoundPrompt.title}</strong>. If you believe the track is in your scanned music collection, you can make a manual album-folder match.</p><div className="form-actions"><button type="button" onClick={beginManualPersonalAlbumMatch}>Yes, Make Manual Match</button><button type="button" className="secondary-button" onClick={() => setPersonalTrackNotFoundPrompt(null)}>No, Not Now</button></div></section></div> : null}
+      {showPersonalFolderMapping ? <div className="artist-summary-overlay" role="presentation"><section className="artist-summary-dialog" role="dialog" aria-modal="true" aria-label="Manual personal album match"><div className="artist-summary-dialog-header"><h2>Manual personal album match</h2><button type="button" className="secondary-button" onClick={() => setShowPersonalFolderMapping(false)}>Cancel</button></div>{personalAlbumValidation === 'invalid' ? <><p>Cannot make one-to-one track associations for this folder.</p><div className="form-actions"><button type="button" onClick={() => setShowPersonalFolderMapping(false)}>OK</button></div></> : <><p>Select the base artist folder and then the album folder. The app will validate every track before enabling Save.</p><label>Artist folder<select value={selectedPersonalArtistFolderPath} onChange={(event) => void browsePersonalAlbumFolders(event.target.value)} disabled={!personalArtistFolders}><option value="">{personalArtistFolders ? 'Choose artist folder' : 'Loading artist folders...'}</option>{personalArtistFolders?.map((folder) => <option key={folder.folderPath} value={folder.folderPath}>{folder.name} ({folder.trackCount} tracks)</option>)}</select></label><label>Album folder<select value={selectedPersonalAlbumFolderPath} onChange={(event) => void validatePersonalAlbumFolder(event.target.value)} disabled={!selectedPersonalArtistFolderPath || !personalBrowsableAlbumFolders || personalAlbumValidation === 'checking'}><option value="">{selectedPersonalArtistFolderPath ? 'Choose album folder' : 'Choose an artist first'}</option>{personalBrowsableAlbumFolders?.map((folder) => <option key={folder.folderPath} value={folder.folderPath}>{folder.album || folder.name} ({folder.trackCount} tracks)</option>)}</select></label>{personalAlbumMappingStatus ? <p className="hint">{personalAlbumMappingStatus}</p> : null}<div className="form-actions"><button type="button" disabled={personalAlbumValidation !== 'valid'} onClick={() => void savePersonalAlbumFolder(selectedPersonalAlbumFolderPath)}>Save Mapping</button><button type="button" className="secondary-button" onClick={() => setShowPersonalFolderMapping(false)}>Cancel</button></div></>}</section></div> : null}
         </>
       )}
+      {catalogSaveError ? <div className="artist-summary-overlay" role="presentation"><section className="artist-summary-dialog catalog-save-error-dialog" role="dialog" aria-modal="true" aria-label="Catalog save error"><div className="artist-summary-dialog-header"><h2>Cannot Save Catalog Entry</h2></div><p>{catalogSaveError}</p><div className="form-actions"><button type="button" autoFocus onClick={() => setCatalogSaveError(null)}>OK</button></div></section></div> : null}
       </main>
     </div>
   );

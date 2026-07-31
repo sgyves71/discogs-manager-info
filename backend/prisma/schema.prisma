@@ -25,6 +25,12 @@ model CdEntry {
   mediaCondition   String?
   estimatedValue   Float?
   valueLastCheckedAt DateTime?
+  discogsLastSoldAt DateTime?
+  discogsMarketLow Float?
+  discogsMarketMedian Float?
+  discogsMarketHigh Float?
+  discogsMarketCurrency String?
+  discogsMarketStatsCheckedAt DateTime?
   notes            String?
   discogsCollectionSyncStatus     String   @default("NOT_SYNCED")
   discogsCollectionInstanceId     Int?

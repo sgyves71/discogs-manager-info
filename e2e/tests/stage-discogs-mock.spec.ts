@@ -35,8 +35,8 @@ test.describe('Stage Discogs Mock', () => {
   test('Searches and Selects a Mock Discogs Release in the User Interface', async ({ page }) => {
     await page.goto('/');
     await page.getByPlaceholder('Artist').fill('Stage Mock Artist');
-    await page.getByPlaceholder('Album title').fill('Mocked CD Album');
-    await page.getByRole('button', { name: 'Look up', exact: true }).click();
+    await page.getByPlaceholder('Album Title').fill('Mocked CD Album');
+    await page.getByRole('button', { name: 'Look Up', exact: true }).click();
 
     await expect(page.getByText('Mocked CD Album', { exact: true })).toBeVisible();
     await page.getByText('Mocked CD Album', { exact: true }).click();
@@ -46,5 +46,94 @@ test.describe('Stage Discogs Mock', () => {
     await expect(selectedResult).toContainText('Rock');
     await expect(selectedResult).toContainText('Hard Rock');
     await expect(selectedResult).toContainText(/synthetic CD release supplies stable label/i);
+    await expect(page.getByText(/synthetic artist used only for repeatable automated testing/i)).toHaveCount(0);
+  });
+
+  test('Filters Search Results by Country When Multiple Countries Are Available', async ({ page }) => {
+    await page.goto('/');
+    await page.getByPlaceholder('Artist').fill('Stage Mock Artist');
+    await page.getByPlaceholder('Album Title').fill('Mocked CD Album');
+    await page.getByRole('button', { name: 'Look Up', exact: true }).click();
+
+    const countryFilter = page.getByRole('combobox', { name: 'Filter search results by country' });
+    await expect(countryFilter).toBeEnabled();
+    await expect(countryFilter).toHaveText(/US/);
+    await expect(countryFilter).toHaveText(/UK/);
+    await countryFilter.selectOption('UK');
+    await expect(page.getByText('Mocked CD Album (Reissue)', { exact: true })).toBeVisible();
+    await expect(page.getByText('Mocked CD Album', { exact: true })).toBeHidden();
+  });
+
+  test('Clears Search Inputs and Results', async ({ page }) => {
+    await page.goto('/');
+    await page.getByPlaceholder('Artist').fill('Stage Mock Artist');
+    await page.getByPlaceholder('Album Title').fill('Mocked CD Album');
+    await page.getByPlaceholder('Catalog Number').fill('SEARCH-PLACEHOLDER');
+    await page.getByPlaceholder('Barcode').fill('0123456789012');
+    await page.getByRole('button', { name: 'Look Up', exact: true }).click();
+    await expect(page.getByText('Mocked CD Album', { exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Clear', exact: true }).click();
+    await expect(page.getByPlaceholder('Artist')).toHaveValue('');
+    await expect(page.getByPlaceholder('Album Title')).toHaveValue('');
+    await expect(page.getByPlaceholder('Catalog Number')).toHaveValue('');
+    await expect(page.getByPlaceholder('Barcode')).toHaveValue('');
+    await expect(page.getByText('Mocked CD Album', { exact: true })).toBeHidden();
+  });
+
+  test('Locks Interaction While Selected Release Data Loads', async ({ page }) => {
+    await page.route(/\/api\/discogs\/releases\/900101\/catalog-info$/, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ label: 'Mock Records', catalogNumber: 'MOCK-CD-001', barcode: '0123456789012' }) });
+    });
+
+    await page.goto('/');
+    await page.getByPlaceholder('Artist').fill('Stage Mock Artist');
+    await page.getByPlaceholder('Album Title').fill('Mocked CD Album');
+    await page.getByRole('button', { name: 'Look Up', exact: true }).click();
+    await page.getByText('Mocked CD Album', { exact: true }).click();
+
+    await expect(page.getByRole('status')).toContainText('Loading Selected Release');
+    await expect(page.getByRole('status')).toContainText('release-specific catalog data from Discogs');
+    await expect(page.locator('.app-layout')).toHaveAttribute('aria-busy', 'true');
+  });
+
+  test('Skips eBay Values When the Search Toggle Is Off', async ({ page }) => {
+    let ebayRequests = 0;
+    await page.route('**/api/ebay/active-listing-stats?**', async (route) => {
+      ebayRequests += 1;
+      await route.fallback();
+    });
+
+    await page.goto('/');
+    await page.getByLabel('Include Current eBay Auction Values').uncheck();
+    await page.getByPlaceholder('Artist').fill('Stage Mock Artist');
+    await page.getByPlaceholder('Album Title').fill('Mocked CD Album');
+    await page.getByRole('button', { name: 'Look Up', exact: true }).click();
+    await page.getByText('Mocked CD Album', { exact: true }).click();
+    await expect(page.locator('.result-card.selected')).toContainText('Mock Records');
+    expect(ebayRequests).toBe(0);
+    await expect(page.locator('.price-suggestions')).toHaveCount(0);
+  });
+
+  test('Reuses Loaded Search Release Details When a Card Is Selected Again', async ({ page }) => {
+    let catalogInfoRequests = 0;
+    await page.route('**/api/discogs/releases/900101/catalog-info', async (route) => {
+      catalogInfoRequests += 1;
+      await route.fallback();
+    });
+
+    await page.goto('/');
+    await page.getByPlaceholder('Artist').fill('Stage Mock Artist');
+    await page.getByPlaceholder('Album Title').fill('Mocked CD Album');
+    await page.getByRole('button', { name: 'Look Up', exact: true }).click();
+    await page.getByText('Mocked CD Album', { exact: true }).click();
+    await expect(page.locator('.result-card.selected')).toContainText('Mock Records');
+
+    await page.getByText('Mocked CD Album (Reissue)', { exact: true }).click();
+    await expect(page.locator('.result-card.selected')).toContainText('Mocked CD Album (Reissue)');
+    await page.getByText('Mocked CD Album', { exact: true }).click();
+    await expect(page.locator('.result-card.selected')).toContainText('Mock Records');
+    expect(catalogInfoRequests).toBe(1);
   });
 });
