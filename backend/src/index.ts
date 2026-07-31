@@ -5,13 +5,13 @@ import path from 'node:path';
 import { createReadStream, promises as fs } from 'node:fs';
 import { PrismaClient } from '@prisma/client';
 import { cleanDiscogsText, getDiscogsPriceSuggestion, getDiscogsPriceSuggestions, getDiscogsReleaseCatalogInfo, getDiscogsReleaseContext, getDiscogsReleaseCover, getDiscogsReleaseImages, getDiscogsReleaseTracklist, searchDiscogsReleases, stripDiscogsArtistDisambiguator } from './discogs.js';
-import { searchMusicBrainz } from './musicbrainz.js';
+import { getMusicBrainzCatalogContext, searchMusicBrainz } from './musicbrainz.js';
 import { getEbayActiveListingStats, getEbaySoldListingStats } from './ebay.js';
 import { findYouTubeMatches } from './youtube.js';
 import { artistSearchFallbacks, contentTypeForAudioFile, isDirectory, normalizeMusicText, pathIsWithinRoot, readMusicFileMetadata, scoreMusicTextMatch, scoreMusicTitleMatch, walkAudioFiles } from './music-library.js';
 import { CatalogEnrichmentService } from './services/catalog-enrichment-service.js';
 import { getStageDiscogsCatalogInfo, getStageDiscogsContext, getStageDiscogsCover, getStageDiscogsImages, getStageDiscogsTracklist, searchStageDiscogsReleases } from './stage-discogs-fixture.js';
-import { searchStageMusicBrainz } from './stage-musicbrainz-fixture.js';
+import { getStageMusicBrainzCatalogContext, searchStageMusicBrainz } from './stage-musicbrainz-fixture.js';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env') });
@@ -705,6 +705,27 @@ app.get('/api/musicbrainz/search', async (req, res) => {
   } catch (error) {
     console.error('MusicBrainz search failed:', error);
     res.status(502).json({ error: 'Unable to search MusicBrainz right now.' });
+  }
+});
+
+app.get('/api/musicbrainz/context', async (req, res) => {
+  const artist = String(req.query.artist || '').trim();
+  const album = String(req.query.album || '').trim();
+  if (!artist && !album) {
+    res.status(400).json({ error: 'Provide an artist or album title.' });
+    return;
+  }
+
+  if (isStageEnvironment) {
+    res.json(getStageMusicBrainzCatalogContext({ artist, album }));
+    return;
+  }
+
+  try {
+    res.json(await getMusicBrainzCatalogContext({ artist, album }));
+  } catch (error) {
+    console.error('MusicBrainz context lookup failed:', error);
+    res.status(502).json({ error: 'Unable to load MusicBrainz details right now.' });
   }
 });
 

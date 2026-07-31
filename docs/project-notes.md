@@ -8,6 +8,8 @@ This document records durable product and technical decisions made during develo
 - The backend has typed result models for artist identity, disambiguation, lifespan, country, album/release-group type, first release date, release count, and artist credits.
 - No MusicBrainz key is needed for this personal, non-commercial integration. The client identifies this application with a User-Agent and schedules requests no faster than one per second, per the [MusicBrainz API guidance](https://musicbrainz.org/doc/MusicBrainz_API).
 - The endpoint uses deterministic Stage fixture data, so automated tests never call MusicBrainz.
+- Catalog detail cards load MusicBrainz artist and release-group context live, with a 24-hour in-memory cache to avoid repeated lookups while browsing.
+- Artist cards prefer MusicBrainz structured facts and artist annotations. MusicBrainz release-group annotations are displayed as album notes; the existing Discogs artist summary and notes remain the fallback when their MusicBrainz equivalent is absent. No MusicBrainz fields are persisted to the catalog database yet.
 
 ## Purpose
 
