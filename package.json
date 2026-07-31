@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "concurrently -n frontend,backend -c blue,green \"npm run dev --workspace frontend\" \"npm run dev --workspace backend\"",
     "build": "npm run build --workspace frontend && npm run build --workspace backend",
+    "verify:release": "npm run build && npm run test:e2e:stage",
+    "deploy:backup": "powershell.exe -ExecutionPolicy Bypass -File scripts/deploy/backup-production-db.ps1",
     "test:e2e": "npm run test --workspace e2e",
     "test:e2e:ui": "npm run test:ui --workspace e2e",
     "test:e2e:api": "npm run test:api --workspace e2e",

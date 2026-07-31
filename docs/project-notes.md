@@ -2,6 +2,19 @@
 
 This document records durable product and technical decisions made during development.
 
+## MusicBrainz Integration
+
+- Artist and release-group search is available at `GET /api/musicbrainz/search?artist=...&album=...`.
+- The backend has typed result models for artist identity, disambiguation, lifespan, country, album/release-group type, first release date, release count, and artist credits.
+- No MusicBrainz key is needed for this personal, non-commercial integration. The client identifies this application with a User-Agent and schedules requests no faster than one per second, per the [MusicBrainz API guidance](https://musicbrainz.org/doc/MusicBrainz_API).
+- The endpoint uses deterministic Stage fixture data, so automated tests never call MusicBrainz.
+- Catalog detail cards load MusicBrainz artist and release-group context live, with a 24-hour in-memory cache to avoid repeated lookups while browsing.
+- Artist cards prefer MusicBrainz structured facts and artist annotations. MusicBrainz release-group annotations are displayed as album notes; the existing Discogs artist summary and notes remain the fallback when their MusicBrainz equivalent is absent. No MusicBrainz fields are persisted to the catalog database yet.
+
+## Catalog Views
+
+- The Catalog view supports List View and Cover Grid on desktop and mobile. On mobile, Cover Grid uses a compact two-column tile layout with the same context-menu actions as list rows.
+
 ## Purpose
 
 Discogs Manager is a personal, local-first application for cataloging a CD collection and tracking its collector value over time.
@@ -112,6 +125,9 @@ Discogs Manager is a personal, local-first application for cataloging a CD colle
 - Apply OOP and SOLID pragmatically: keep domain/integration behavior in focused backend services, keep route handlers thin, prefer small typed frontend components with clear responsibilities, and refactor when a component or module becomes difficult to reason about or test.
 - Add or update focused tests with every new behavior, especially for catalog writes, background jobs, API integrations, and user-confirmation flows. Mutation coverage must remain Stage-only and external integrations must be mocked or disabled there.
 - Keep this file updated when we make a durable product, data-model, API, or workflow decision.
+- The planned permanent local deployment uses IIS for HTTPS static frontend hosting and `/api` reverse proxying, plus a Node backend Windows service bound only to `127.0.0.1`. The project-side runbook is `docs/local-iis-deployment.md`; Production SQLite backups must precede deployment and migrations.
+- The permanent local deployment is configured at `https://192.168.68.50/`: IIS serves the frontend and proxies `/api` to the automatic `DiscogsManagerBackend` NSSM service on `127.0.0.1:3100`. The development servers remain separate and are not needed for normal use.
+- `docs/development-and-release-workflow.md` is the source of truth for the branch, Stage-test, merge, migration, IIS-deployment, and recovery workflow.
 - The `e2e` npm workspace contains a Playwright foundation: a read-only catalog API smoke test and UI navigation smoke test. It targets the running local frontend/backend by default, with `E2E_APP_URL` and `E2E_API_URL` overrides. Before adding mutation coverage, create a disposable SQLite test database, seed data, and mocked Discogs/eBay responses so tests never write to the personal collection database.
 - The Stage-test environment uses the separate ignored SQLite file `backend/prisma/stage.db`, configured with `APP_ENV=stage`, `DATABASE_URL=file:./stage.db`, and port `3101` in `backend/.env.stage`. `npm run stage:reset` replaces only that disposable database, applies checked-in migration SQL, and seeds synthetic catalog/music-library records. It never reads, copies, or changes the personal `dev.db`.
 - `npm run stage:dev` starts the isolated Stage API at `http://localhost:3101` and Stage frontend at `https://localhost:5174`. It disables Discogs, eBay, and YouTube credentials so test execution cannot make external requests. Run `npm run stage:reset` while Stage is stopped, then start `stage:dev` in one terminal and run `npm run test:e2e:stage` in another; Playwright targets only those Stage ports.

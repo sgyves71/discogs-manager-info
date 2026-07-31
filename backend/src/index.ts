@@ -5,11 +5,13 @@ import path from 'node:path';
 import { createReadStream, promises as fs } from 'node:fs';
 import { PrismaClient } from '@prisma/client';
 import { cleanDiscogsText, getDiscogsPriceSuggestion, getDiscogsPriceSuggestions, getDiscogsReleaseCatalogInfo, getDiscogsReleaseContext, getDiscogsReleaseCover, getDiscogsReleaseImages, getDiscogsReleaseTracklist, searchDiscogsReleases, stripDiscogsArtistDisambiguator } from './discogs.js';
+import { getMusicBrainzCatalogContext, searchMusicBrainz } from './musicbrainz.js';
 import { getEbayActiveListingStats, getEbaySoldListingStats } from './ebay.js';
 import { findYouTubeMatches } from './youtube.js';
 import { artistSearchFallbacks, contentTypeForAudioFile, isDirectory, normalizeMusicText, pathIsWithinRoot, readMusicFileMetadata, scoreMusicTextMatch, scoreMusicTitleMatch, walkAudioFiles } from './music-library.js';
 import { CatalogEnrichmentService } from './services/catalog-enrichment-service.js';
 import { getStageDiscogsCatalogInfo, getStageDiscogsContext, getStageDiscogsCover, getStageDiscogsImages, getStageDiscogsTracklist, searchStageDiscogsReleases } from './stage-discogs-fixture.js';
+import { getStageMusicBrainzCatalogContext, searchStageMusicBrainz } from './stage-musicbrainz-fixture.js';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env') });
@@ -31,6 +33,7 @@ const prisma = new PrismaClient(process.env.APP_ENV === 'stage'
   ? { datasources: { db: { url: process.env.DATABASE_URL } } }
   : undefined);
 const port = process.env.PORT ? Number(process.env.PORT) : 3100;
+const host = process.env.HOST?.trim() || undefined;
 const discogsToken = process.env.DISCOGS_TOKEN?.trim();
 const ebayClientId = process.env.EBAY_CLIENT_ID?.trim();
 const ebayClientSecret = process.env.EBAY_CLIENT_SECRET?.trim();
@@ -683,6 +686,49 @@ app.get('/api/discogs/search', async (req, res) => {
   }
 });
 
+app.get('/api/musicbrainz/search', async (req, res) => {
+  const artist = String(req.query.artist || '').trim();
+  const album = String(req.query.album || '').trim();
+
+  if (!artist && !album) {
+    res.status(400).json({ error: 'Provide an artist or album title.' });
+    return;
+  }
+
+  if (isStageEnvironment) {
+    res.json(searchStageMusicBrainz({ artist, album }));
+    return;
+  }
+
+  try {
+    res.json(await searchMusicBrainz({ artist, album }));
+  } catch (error) {
+    console.error('MusicBrainz search failed:', error);
+    res.status(502).json({ error: 'Unable to search MusicBrainz right now.' });
+  }
+});
+
+app.get('/api/musicbrainz/context', async (req, res) => {
+  const artist = String(req.query.artist || '').trim();
+  const album = String(req.query.album || '').trim();
+  if (!artist && !album) {
+    res.status(400).json({ error: 'Provide an artist or album title.' });
+    return;
+  }
+
+  if (isStageEnvironment) {
+    res.json(getStageMusicBrainzCatalogContext({ artist, album }));
+    return;
+  }
+
+  try {
+    res.json(await getMusicBrainzCatalogContext({ artist, album }));
+  } catch (error) {
+    console.error('MusicBrainz context lookup failed:', error);
+    res.status(502).json({ error: 'Unable to load MusicBrainz details right now.' });
+  }
+});
+
 app.get('/api/discogs/releases/:id/cover', async (req, res) => {
   const releaseId = Number(req.params.id);
   if (!Number.isInteger(releaseId) || releaseId <= 0) {
@@ -1219,7 +1265,20 @@ app.delete('/api/cds/:id', async (req, res) => {
 void normalizeStoredCatalogText()
   .catch((error) => console.error('Unable to normalize stored Discogs artist suffixes:', error))
   .finally(() => {
-    app.listen(port, () => {
-      console.log(`Backend listening on http://localhost:${port}`);
-    });
+    const onListening = () => {
+      console.log(`Backend listening on http://${host ?? 'localhost'}:${port}`);
+    };
+    const server = host ? app.listen(port, host, onListening) : app.listen(port, onListening);
+    let stopping = false;
+    const shutdown = (signal: string) => {
+      if (stopping) return;
+      stopping = true;
+      console.log(`${signal} received. Shutting down backend...`);
+      server.close(() => {
+        void prisma.$disconnect().finally(() => process.exit(0));
+      });
+      setTimeout(() => process.exit(1), 10_000).unref();
+    };
+    process.once('SIGINT', () => shutdown('SIGINT'));
+    process.once('SIGTERM', () => shutdown('SIGTERM'));
   });

@@ -52,6 +52,31 @@ type DiscogsReleaseContext = {
   style: string | null;
 };
 
+type MusicBrainzCatalogContext = {
+  artist: {
+    id: string;
+    name: string;
+    type: string | null;
+    country: string | null;
+    disambiguation: string | null;
+    beginDate: string | null;
+    endDate: string | null;
+    ended: boolean | null;
+    annotation: string | null;
+    genres: string[];
+    tags: string[];
+  } | null;
+  releaseGroup: {
+    id: string;
+    title: string;
+    primaryType: string | null;
+    firstReleaseDate: string | null;
+    annotation: string | null;
+    genres: string[];
+    tags: string[];
+  } | null;
+};
+
 type SearchReleaseDetailsCache = {
   release: DiscogsResult;
   catalogInfoLoaded?: boolean;
@@ -226,6 +251,7 @@ function App() {
   const [viewedEntry, setViewedEntry] = useState<CdEntry | null>(null);
   const [detailCoverImage, setDetailCoverImage] = useState<string | null>(null);
   const [detailContext, setDetailContext] = useState<DiscogsReleaseContext | null>(null);
+  const [detailMusicBrainzContext, setDetailMusicBrainzContext] = useState<MusicBrainzCatalogContext | null>(null);
   const [detailEbayStats, setDetailEbayStats] = useState<EBayActiveListingStats | null>(null);
   const [detailStatus, setDetailStatus] = useState('');
   const [editingEstimatedValue, setEditingEstimatedValue] = useState(false);
@@ -433,6 +459,7 @@ function App() {
     if (!viewedEntry) {
       setDetailCoverImage(null);
       setDetailContext(null);
+      setDetailMusicBrainzContext(null);
       setDetailEbayStats(null);
       setDetailStatus('');
       setEditingEstimatedValue(false);
@@ -467,8 +494,9 @@ function App() {
     let cancelled = false;
     setDetailCoverImage(null);
     setDetailContext(null);
+    setDetailMusicBrainzContext(null);
     setDetailEbayStats(null);
-    setDetailStatus('Loading live Discogs and eBay details...');
+    setDetailStatus('Loading live Discogs, MusicBrainz, and eBay details...');
     setEditingEstimatedValue(false);
     setEstimatedValueInput('');
     setEstimatedValueStatus('');
@@ -525,6 +553,12 @@ function App() {
         );
       }
     }
+    lookups.push(
+      fetch(`/api/musicbrainz/context?${new URLSearchParams({ artist: viewedEntry.artist, album: viewedEntry.title }).toString()}`)
+        .then((response) => response.ok ? response.json() as Promise<MusicBrainzCatalogContext> : null)
+        .then((data) => { if (!cancelled && data) setDetailMusicBrainzContext(data); })
+        .catch(() => undefined),
+    );
 
     const ebayParams = new URLSearchParams({ artist: viewedEntry.artist, title: viewedEntry.title });
     if (viewedEntry.catalogNumber) ebayParams.set('catalogNumber', viewedEntry.catalogNumber);
@@ -1734,8 +1768,9 @@ function App() {
             </form> : null}
             {editingEstimatedValue ? <div className="detail-section estimated-value-editor"><strong>Update estimated value</strong><div className="inline-form"><input type="number" min="0" step="0.01" disabled={Boolean(catalogSaveAction)} value={estimatedValueInput} onChange={(event) => setEstimatedValueInput(event.target.value)} placeholder="Leave blank to clear" aria-label="Estimated value" /><button type="button" disabled={Boolean(catalogSaveAction)} onClick={() => void saveEstimatedValue()}>Save Value</button><button type="button" className="secondary-button" disabled={Boolean(catalogSaveAction)} onClick={() => { setEditingEstimatedValue(false); setEstimatedValueStatus(''); }}>Cancel</button></div>{estimatedValueStatus ? <p className="hint">{estimatedValueStatus}</p> : null}</div> : null}
             {viewedEntry.notes ? <div className="detail-section"><strong>Your Notes</strong><p>{viewedEntry.notes}</p></div> : null}
-            {detailContext?.artistProfile && detailContext.descriptionSource !== 'artist' ? <div className="detail-section"><strong>Artist summary</strong><p className="artist-summary-preview"><span className="artist-summary-desktop">{formatDiscogsText(detailContext.artistProfile)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(detailContext.artistProfile))}</span></p><button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(detailContext.artistProfile!))}>Show All</button></div> : null}
-            {detailContext ? <div className="detail-section"><strong>{detailContext.descriptionSource === 'release' ? 'Release notes' : detailContext.descriptionSource === 'album' ? 'Album notes' : 'Artist summary'}</strong><p className={detailContext.descriptionSource === 'artist' ? 'artist-summary-preview' : undefined}>{detailContext.description ? <>{detailContext.descriptionSource === 'artist' ? <><span className="artist-summary-desktop">{formatDiscogsText(detailContext.description)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(detailContext.description))}</span></> : formatDiscogsText(detailContext.description)}</> : 'No additional Discogs notes are available.'}</p>{detailContext.descriptionSource === 'artist' && detailContext.description ? <button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(detailContext.description!))}>Show All</button> : null}</div> : null}
+            {detailMusicBrainzContext?.artist ? <div className="detail-section"><strong>Artist Details <span className="hint">â€¢ MusicBrainz</span></strong><p>{[detailMusicBrainzContext.artist.type, detailMusicBrainzContext.artist.country, detailMusicBrainzContext.artist.beginDate ? `Formed ${detailMusicBrainzContext.artist.beginDate}` : null, detailMusicBrainzContext.artist.ended && detailMusicBrainzContext.artist.endDate ? `Ended ${detailMusicBrainzContext.artist.endDate}` : null, detailMusicBrainzContext.artist.disambiguation].filter(Boolean).join(' â€¢ ')}</p>{detailMusicBrainzContext.artist.genres.length ? <p><strong>Genres:</strong> {detailMusicBrainzContext.artist.genres.join(', ')}</p> : null}{detailMusicBrainzContext.artist.tags.length ? <p><strong>Tags:</strong> {detailMusicBrainzContext.artist.tags.slice(0, 8).join(', ')}</p> : null}</div> : null}
+            {detailMusicBrainzContext?.artist?.annotation ? <div className="detail-section"><strong>Artist Summary <span className="hint">â€¢ MusicBrainz</span></strong><p className="artist-summary-preview"><span className="artist-summary-desktop">{formatDiscogsText(detailMusicBrainzContext.artist.annotation)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(detailMusicBrainzContext.artist.annotation))}</span></p><button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(detailMusicBrainzContext.artist!.annotation!))}>Show All</button></div> : detailContext?.artistProfile && detailContext.descriptionSource !== 'artist' ? <div className="detail-section"><strong>Artist Summary <span className="hint">â€¢ Discogs</span></strong><p className="artist-summary-preview"><span className="artist-summary-desktop">{formatDiscogsText(detailContext.artistProfile)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(detailContext.artistProfile))}</span></p><button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(detailContext.artistProfile!))}>Show All</button></div> : null}
+            {detailMusicBrainzContext?.releaseGroup?.annotation ? <div className="detail-section"><strong>Album Notes <span className="hint">â€¢ MusicBrainz</span></strong><p>{formatDiscogsText(detailMusicBrainzContext.releaseGroup.annotation)}</p>{detailMusicBrainzContext.releaseGroup.genres.length ? <p><strong>Genres:</strong> {detailMusicBrainzContext.releaseGroup.genres.join(', ')}</p> : null}</div> : detailContext && !(detailContext.descriptionSource === 'artist' && detailMusicBrainzContext?.artist?.annotation) ? <div className="detail-section"><strong>{detailContext.descriptionSource === 'release' ? 'Release Notes' : detailContext.descriptionSource === 'album' ? 'Album Notes' : 'Artist Summary'} <span className="hint">â€¢ Discogs</span></strong><p className={detailContext.descriptionSource === 'artist' ? 'artist-summary-preview' : undefined}>{detailContext.description ? <>{detailContext.descriptionSource === 'artist' ? <><span className="artist-summary-desktop">{formatDiscogsText(detailContext.description)}</span><span className="artist-summary-mobile">{previewDiscogsText(formatDiscogsText(detailContext.description))}</span></> : formatDiscogsText(detailContext.description)}</> : 'No additional Discogs notes are available.'}</p>{detailContext.descriptionSource === 'artist' && detailContext.description ? <button type="button" className="artist-summary-show-all" onClick={() => setExpandedArtistSummary(formatDiscogsText(detailContext.description!))}>Show All</button> : null}</div> : null}
             {detailEbayStats?.sampledListingCount ? <div className={`detail-section ebay-listing-results ${detailEbayStats.searchMethod}`}><strong>eBay active listings</strong><p>{detailEbayStats.listingCount} listings found • {detailEbayStats.searchMethod === 'catalogNumber' ? 'catalog number match' : 'artist/title CD search'} • Low / average / high: {detailEbayStats.currency || '$'} {detailEbayStats.lowestPrice?.toFixed(2)} / {detailEbayStats.averagePrice?.toFixed(2)} / {detailEbayStats.highestPrice?.toFixed(2)}</p></div> : null}
             {showDetailImages ? (
               <div className="detail-section release-image-gallery">
