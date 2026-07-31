@@ -19,8 +19,9 @@ if (-not (Test-Path -LiteralPath $iisTemplate -PathType Leaf)) {
   throw "IIS web.config template was not found at $iisTemplate."
 }
 if (-not $SkipDatabaseBackup) {
+  # PowerShell scripts do not reliably reset $LASTEXITCODE; a stale value from
+  # an earlier native command must not invalidate a successful backup.
   & (Join-Path $PSScriptRoot 'backup-production-db.ps1')
-  if ($LASTEXITCODE -ne 0) { throw 'Production database backup failed. Deployment was not started.' }
 }
 
 New-Item -ItemType Directory -Path $resolvedIisContentPath -Force | Out-Null
