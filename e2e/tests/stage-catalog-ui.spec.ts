@@ -67,6 +67,17 @@ test.describe('Stage Catalog User Interface', () => {
     await expect(page.locator('.collection-list')).toBeVisible();
   });
 
+  test('Shows a Compact Two-Column Cover Grid on Mobile', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Catalog' }).click();
+    const gridButton = page.getByRole('button', { name: 'Cover Grid', exact: true });
+    await expect(gridButton).toBeVisible();
+    await gridButton.click();
+    await expect(page.locator('.catalog-cover-grid')).toBeVisible();
+    await expect(page.locator('.catalog-cover-grid-item')).toHaveCount(1);
+  });
+
   test('Loads More Catalog Albums When the Scroll Sentinel Is Reached', async ({ page }) => {
     const catalogItems = Array.from({ length: 51 }, (_, index) => ({
       id: index + 1, artist: `Scroll Artist ${index + 1}`, title: `Scroll Album ${index + 1}`, year: 2000 + index, country: 'US', label: 'Test Records', format: 'CD, Album',

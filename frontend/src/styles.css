@@ -1273,7 +1273,35 @@ button:disabled {
   }
 
   .collection-view-toggle {
-    display: none;
+    display: flex;
+  }
+
+  .collection-view-toggle button {
+    padding: 0.38rem 0.55rem;
+    font-size: 0.76rem;
+  }
+
+  .catalog-cover-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem;
+    margin-top: 0.75rem;
+  }
+
+  .catalog-cover-grid-caption {
+    min-height: 3.55rem;
+    gap: 0.1rem;
+    padding: 0.5rem 2.35rem 0.55rem 0.55rem;
+  }
+
+  .catalog-cover-grid-caption strong,
+  .catalog-cover-grid-caption span {
+    font-size: 0.76rem;
+    line-height: 1.2;
+  }
+
+  .catalog-cover-grid-item .collection-actions {
+    right: 0.4rem;
+    bottom: 0.42rem;
   }
 
   .collection-column-headings {

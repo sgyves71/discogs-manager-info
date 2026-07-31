@@ -11,6 +11,10 @@ This document records durable product and technical decisions made during develo
 - Catalog detail cards load MusicBrainz artist and release-group context live, with a 24-hour in-memory cache to avoid repeated lookups while browsing.
 - Artist cards prefer MusicBrainz structured facts and artist annotations. MusicBrainz release-group annotations are displayed as album notes; the existing Discogs artist summary and notes remain the fallback when their MusicBrainz equivalent is absent. No MusicBrainz fields are persisted to the catalog database yet.
 
+## Catalog Views
+
+- The Catalog view supports List View and Cover Grid on desktop and mobile. On mobile, Cover Grid uses a compact two-column tile layout with the same context-menu actions as list rows.
+
 ## Purpose
 
 Discogs Manager is a personal, local-first application for cataloging a CD collection and tracking its collector value over time.
