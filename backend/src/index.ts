@@ -31,6 +31,7 @@ const prisma = new PrismaClient(process.env.APP_ENV === 'stage'
   ? { datasources: { db: { url: process.env.DATABASE_URL } } }
   : undefined);
 const port = process.env.PORT ? Number(process.env.PORT) : 3100;
+const host = process.env.HOST?.trim() || undefined;
 const discogsToken = process.env.DISCOGS_TOKEN?.trim();
 const ebayClientId = process.env.EBAY_CLIENT_ID?.trim();
 const ebayClientSecret = process.env.EBAY_CLIENT_SECRET?.trim();
@@ -1219,7 +1220,20 @@ app.delete('/api/cds/:id', async (req, res) => {
 void normalizeStoredCatalogText()
   .catch((error) => console.error('Unable to normalize stored Discogs artist suffixes:', error))
   .finally(() => {
-    app.listen(port, () => {
-      console.log(`Backend listening on http://localhost:${port}`);
-    });
+    const onListening = () => {
+      console.log(`Backend listening on http://${host ?? 'localhost'}:${port}`);
+    };
+    const server = host ? app.listen(port, host, onListening) : app.listen(port, onListening);
+    let stopping = false;
+    const shutdown = (signal: string) => {
+      if (stopping) return;
+      stopping = true;
+      console.log(`${signal} received. Shutting down backend...`);
+      server.close(() => {
+        void prisma.$disconnect().finally(() => process.exit(0));
+      });
+      setTimeout(() => process.exit(1), 10_000).unref();
+    };
+    process.once('SIGINT', () => shutdown('SIGINT'));
+    process.once('SIGTERM', () => shutdown('SIGTERM'));
   });
