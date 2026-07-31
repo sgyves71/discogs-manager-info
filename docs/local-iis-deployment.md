@@ -63,12 +63,14 @@ Confirm locally before involving IIS:
 Invoke-WebRequest http://127.0.0.1:3100/api/health
 ```
 
+For the initial installation, the branch also includes `scripts/deploy/configure-local-iis.ps1`. It creates the IIS site, enables ARR proxying, imports the mkcert PFX, creates the Private-network firewall rule, downloads NSSM from its official site, and registers the backend service. Run it only from an elevated PowerShell after a successful build.
+
 ## Configure IIS
 
 1. Create `C:\inetpub\DiscogsManager`.
 2. Create an IIS site named `DiscogsManager`, with that folder as its physical path.
 3. Bind HTTPS on port 443 to `192.168.68.50` and assign the trusted certificate.
-4. Open the site from this PC at `https://localhost/` and from the phone at `https://192.168.68.50/`.
+4. Open the site from this PC at `https://localhost/` and from the phone at `https://192.168.68.50/`. The setup script also adds an HTTP binding only to redirect users to HTTPS.
 
 The deployment script copies built files and the supplied `web.config` to the IIS folder. The latter proxies `/api/*` to the local backend and returns `index.html` for React routes.
 

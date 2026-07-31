@@ -1,9 +1,11 @@
 [CmdletBinding()]
 param(
-  [string]$DatabasePath = (Join-Path $PSScriptRoot '..\..\backend\prisma\dev.db'),
-  [string]$BackupDirectory = (Join-Path $PSScriptRoot '..\..\backend\prisma\backups')
+  [string]$DatabasePath = '',
+  [string]$BackupDirectory = ''
 )
 
+if (-not $DatabasePath) { $DatabasePath = Join-Path $PSScriptRoot '..\..\backend\prisma\dev.db' }
+if (-not $BackupDirectory) { $BackupDirectory = Join-Path $PSScriptRoot '..\..\backend\prisma\backups' }
 $resolvedDatabase = [System.IO.Path]::GetFullPath($DatabasePath)
 $resolvedBackupDirectory = [System.IO.Path]::GetFullPath($BackupDirectory)
 if (-not (Test-Path -LiteralPath $resolvedDatabase -PathType Leaf)) {
