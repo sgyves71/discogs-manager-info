@@ -1222,6 +1222,13 @@ button:disabled {
 }
 
 @media (max-width: 600px) {
+  /* iOS Safari zooms focused text controls below a 16px computed font size. */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+
   .app-layout {
     display: block;
   }
