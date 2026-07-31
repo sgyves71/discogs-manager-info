@@ -48,18 +48,21 @@ test('MusicBrainzClient Avoids Requests for Empty Search Criteria', async () => 
 
 test('MusicBrainzClient Uses Exact Artist and Album Matches for Context Details', async () => {
   const requests: string[] = [];
-  const client = new MusicBrainzClient(async (url) => {
+  const detailIncludes: unknown[] = [];
+  const client = new MusicBrainzClient(async (url, config) => {
     requests.push(url);
+    if (url.includes('/artist/artist-id') || url.includes('/release-group/group-id')) detailIncludes.push((config?.params as Record<string, unknown>)?.inc);
     if (url.endsWith('/artist')) return { data: { artists: [{ id: 'artist-id', name: 'Icon', type: 'Group', country: 'US', score: 100, 'life-span': { begin: '1979' } }] } } as never;
     if (url.endsWith('/release-group')) return { data: { 'release-groups': [{ id: 'group-id', title: 'Night Of The Crime', 'primary-type': 'Album', 'first-release-date': '1985', score: 100, 'artist-credit': [{ name: 'Icon', artist: { id: 'artist-id', name: 'Icon' } }] }] } } as never;
-    if (url.endsWith('/artist/artist-id')) return { data: { annotation: 'Artist annotation', genres: [{ name: 'Hard rock' }], tags: [{ name: 'glam metal' }] } } as never;
-    return { data: { annotation: 'Album annotation', genres: [{ name: 'Heavy metal' }], tags: [{ name: '1980s' }] } } as never;
+    if (url.endsWith('/artist/artist-id')) return { data: { annotation: 'Artist annotation', genres: [{ name: 'Hard rock' }] } } as never;
+    return { data: { annotation: 'Album annotation', genres: [{ name: 'Heavy metal' }] } } as never;
   }, 0);
 
   const context = await client.getCatalogContext({ artist: 'Icon', album: 'Night Of The Crime' });
   assert.deepEqual(context, {
-    artist: { id: 'artist-id', name: 'Icon', type: 'Group', country: 'US', disambiguation: null, beginDate: '1979', endDate: null, ended: null, annotation: 'Artist annotation', genres: ['Hard rock'], tags: ['glam metal'] },
-    releaseGroup: { id: 'group-id', title: 'Night Of The Crime', primaryType: 'Album', firstReleaseDate: '1985', annotation: 'Album annotation', genres: ['Heavy metal'], tags: ['1980s'] },
+    artist: { id: 'artist-id', name: 'Icon', type: 'Group', country: 'US', disambiguation: null, beginDate: '1979', endDate: null, ended: null, annotation: 'Artist annotation', genres: ['Hard rock'] },
+    releaseGroup: { id: 'group-id', title: 'Night Of The Crime', primaryType: 'Album', firstReleaseDate: '1985', annotation: 'Album annotation', genres: ['Heavy metal'] },
   });
   assert.deepEqual(requests.map((url) => url.replace('https://musicbrainz.org/ws/2', '')), ['/artist', '/release-group', '/artist/artist-id', '/release-group/group-id']);
+  assert.deepEqual(detailIncludes, ['annotation+genres', 'annotation+genres']);
 });
