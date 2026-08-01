@@ -7,9 +7,9 @@ export function ArtistSummaryDialog({ summary, onClose }: ArtistSummaryDialogPro
   return (
     <div className="artist-summary-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <section className="artist-summary-dialog" role="dialog" aria-modal="true" aria-label="Full artist summary">
+        <button type="button" className="dialog-close-button dialog-close-sticky" aria-label="Close artist summary" title="Close" onClick={onClose}>×</button>
         <div className="artist-summary-dialog-header">
           <h2>Artist summary</h2>
-          <button type="button" className="secondary-button" onClick={onClose}>Close</button>
         </div>
         <p>{summary}</p>
       </section>

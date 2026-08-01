@@ -79,8 +79,8 @@ export function cleanEbaySearchText(value: string): string {
     .trim();
 }
 
-function isMatchingCdAudioListing(listingTitle: string | undefined, artist: string, albumTitle: string): boolean {
-  if (!listingTitle || !/(?:\bcd\b|\bcompact\s+disc\b|\baudio\s+cd\b)/i.test(listingTitle)) {
+export function isMatchingCdAudioListing(listingTitle: string | undefined, artist: string, albumTitle: string): boolean {
+  if (!listingTitle || /\bsigned\b/i.test(listingTitle) || !/(?:\bcd\b|\bcompact\s+disc\b|\baudio\s+cd\b)/i.test(listingTitle)) {
     return false;
   }
 

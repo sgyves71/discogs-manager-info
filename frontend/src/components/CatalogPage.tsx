@@ -8,8 +8,10 @@ type CatalogPageProps = {
   isLoading: boolean;
   hasMoreItems: boolean;
   status: string;
+  sort: 'artist' | 'discogs-median-desc' | 'estimated-value-desc';
   hasOpenDetail: boolean;
   onSearchChange: (value: string) => void;
+  onSortChange: (value: 'artist' | 'discogs-median-desc' | 'estimated-value-desc') => void;
   onOpenDetail: (item: CdEntry) => void;
   onChangeAssociation: (item: CdEntry) => void;
   onSearchEbay: (item: CdEntry) => void;
@@ -19,12 +21,18 @@ type CatalogPageProps = {
 };
 
 export function CatalogPage({
-  items, search, total, isLoading, hasMoreItems, status, hasOpenDetail,
-  onSearchChange, onOpenDetail, onChangeAssociation, onSearchEbay, onRemove, onLoadMore, children,
+  items, search, total, isLoading, hasMoreItems, status, sort, hasOpenDetail,
+  onSearchChange, onSortChange, onOpenDetail, onChangeAssociation, onSearchEbay, onRemove, onLoadMore, children,
 }: CatalogPageProps) {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
   const coverUrl = (item: CdEntry) => `/api/cds/${item.id}/cover${item.coverImageUpdatedAt ? `?updated=${encodeURIComponent(item.coverImageUpdatedAt)}` : ''}`;
+  const showsMedian = sort === 'discogs-median-desc';
+  const showsEstimatedValue = sort === 'estimated-value-desc';
+  const medianLabel = (item: CdEntry) => item.discogsMarketMedian != null
+    ? `${item.discogsMarketCurrency === 'USD' || !item.discogsMarketCurrency ? '$' : `${item.discogsMarketCurrency} `}${item.discogsMarketMedian.toFixed(2)}`
+    : 'Not Available';
 
   useEffect(() => {
     const sentinel = loadMoreSentinelRef.current;
@@ -36,17 +44,26 @@ export function CatalogPage({
     return () => observer.disconnect();
   }, [hasMoreItems, isLoading, onLoadMore]);
 
+  useEffect(() => {
+    if (openMenuId == null) return;
+    const closeMenuWhenClickingElsewhere = (event: PointerEvent) => {
+      if (!(event.target instanceof Element) || !event.target.closest('.row-menu')) setOpenMenuId(null);
+    };
+    document.addEventListener('pointerdown', closeMenuWhenClickingElsewhere);
+    return () => document.removeEventListener('pointerdown', closeMenuWhenClickingElsewhere);
+  }, [openMenuId]);
+
   const renderActions = (item: CdEntry) => (
     <div className="collection-actions" onClick={(event) => event.stopPropagation()}>
-      <details className="row-menu">
-        <summary aria-label={`Actions for ${item.artist} — ${item.title}`}>•••</summary>
-        <div className="row-menu-items">
-          <button type="button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); if (!hasOpenDetail) onOpenDetail(item); }}>View Details</button>
-          <button type="button" className="secondary-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); onChangeAssociation(item); }}>Change Association</button>
-          <button type="button" className="secondary-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); onSearchEbay(item); }}>Search eBay</button>
-          <button type="button" className="danger-button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); onRemove(item); }}>Remove Entry</button>
-        </div>
-      </details>
+      <div className="row-menu">
+        <button type="button" className="row-menu-trigger" aria-label={`Actions for ${item.artist} — ${item.title}`} aria-expanded={openMenuId === item.id} onClick={() => setOpenMenuId((current) => current === item.id ? null : item.id)}>•••</button>
+        {openMenuId === item.id ? <div className="row-menu-items">
+          <button type="button" onClick={() => { setOpenMenuId(null); if (!hasOpenDetail) onOpenDetail(item); }}>View Details</button>
+          <button type="button" className="secondary-button" onClick={() => { setOpenMenuId(null); onChangeAssociation(item); }}>Change Association</button>
+          <button type="button" className="secondary-button" onClick={() => { setOpenMenuId(null); onSearchEbay(item); }}>Search eBay</button>
+          <button type="button" className="danger-button" onClick={() => { setOpenMenuId(null); onRemove(item); }}>Remove Entry</button>
+        </div> : null}
+      </div>
     </div>
   );
 
@@ -60,6 +77,11 @@ export function CatalogPage({
           <input value={search} onChange={(event) => onSearchChange(event.target.value)} placeholder="Search Artist, Album, Catalog #, or Barcode" aria-label="Search Collection" />
           <div className="collection-toolbar-meta">
             <span>{total ? `Showing ${items.length} of ${total}` : 'No CDs found'}</span>
+            <label className="collection-sort">Sort<select value={sort} onChange={(event) => onSortChange(event.target.value as typeof sort)} aria-label="Sort Catalog">
+              <option value="artist">Artist (A-Z)</option>
+              <option value="discogs-median-desc">Discogs Median (High to Low)</option>
+              <option value="estimated-value-desc">Estimated Value (High to Low)</option>
+            </select></label>
             <div className="collection-view-toggle" aria-label="Catalog view">
               <button type="button" className={viewMode === 'list' ? 'is-active' : 'secondary-button'} onClick={() => setViewMode('list')} aria-pressed={viewMode === 'list'}>List View</button>
               <button type="button" className={viewMode === 'grid' ? 'is-active' : 'secondary-button'} onClick={() => setViewMode('grid')} aria-pressed={viewMode === 'grid'}>Cover Grid</button>
@@ -67,7 +89,7 @@ export function CatalogPage({
           </div>
         </div>
         {status ? <p className="hint collection-status" aria-live="polite">{status}</p> : null}
-        {viewMode === 'list' ? <div className="collection-column-headings" aria-hidden="true"><span /><span>Artist</span><span>Album</span><span>Year</span><span>Menu</span></div> : null}
+        {viewMode === 'list' ? <div className="collection-column-headings" aria-hidden="true"><span /><span>Artist</span><span>Album</span><span>{showsMedian ? 'Discogs Median' : showsEstimatedValue ? 'Estimated Value' : 'Year'}</span><span>Menu</span></div> : null}
         {children}
         {viewMode === 'list' ? <ul className="collection-list">
           {items.map((item) => (
@@ -75,7 +97,7 @@ export function CatalogPage({
               if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (!hasOpenDetail) onOpenDetail(item); }
             }}>
               <div className="collection-cover">{item.hasCover ? <img src={coverUrl(item)} alt="" /> : <span aria-hidden="true">♫</span>}</div>
-              <div className="collection-summary"><div><span>Artist</span><strong>{item.artist}</strong></div><div><span>Album</span><strong>{item.title}</strong></div><div><span>Year</span><strong>{item.year ?? 'Unknown'}</strong></div></div>
+              <div className="collection-summary"><div><span>Artist</span><strong>{item.artist}</strong></div><div><span>Album</span><strong>{item.title}</strong></div><div><span>{showsMedian ? 'Discogs Median' : showsEstimatedValue ? 'Estimated Value' : 'Year'}</span><strong>{showsMedian ? medianLabel(item) : showsEstimatedValue ? (item.estimatedValue != null ? `$${item.estimatedValue.toFixed(2)}` : 'Not Set') : item.year ?? 'Unknown'}</strong></div></div>
               {renderActions(item)}
             </li>
           ))}

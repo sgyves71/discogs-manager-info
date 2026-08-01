@@ -110,7 +110,7 @@ export class CatalogEnrichmentService {
       fetchDiscogsMarketStats(discogsId),
       this.prisma.cdEntry.findUnique({
         where: { id: cdEntryId },
-        select: { discogsLastSoldAt: true, discogsMarketLow: true, discogsMarketMedian: true, discogsMarketHigh: true, discogsMarketCurrency: true },
+        select: { discogsLastSoldAt: true, discogsMarketLow: true, discogsMarketMedian: true, discogsMarketHigh: true, discogsMarketCurrency: true, estimatedValue: true, estimatedValueIsManual: true },
       }),
     ]);
     if (!existing) return false;
@@ -130,9 +130,28 @@ export class CatalogEnrichmentService {
         discogsMarketHigh: marketStats.high,
         discogsMarketCurrency: marketStats.currency,
         discogsMarketStatsCheckedAt: new Date(),
+        // $15.00 is the catalog's default/unset estimate. Once Discogs has a
+        // real market median, promote it without touching a user-set value.
+        ...(!existing.estimatedValueIsManual && existing.estimatedValue === 15 && currentMarketStats.median != null
+          ? { estimatedValue: currentMarketStats.median, valueLastCheckedAt: new Date() }
+          : {}),
       },
     });
     return Boolean(currentMarketStats.lastSoldAt || currentMarketStats.low != null || currentMarketStats.median != null || currentMarketStats.high != null);
+  }
+
+  async backfillDefaultEstimatedValuesFromMarketMedians(): Promise<number> {
+    const entries = await this.prisma.cdEntry.findMany({
+      where: { estimatedValue: 15, estimatedValueIsManual: false, discogsMarketMedian: { not: null } },
+      select: { id: true, discogsMarketMedian: true },
+    });
+    if (!entries.length) return 0;
+    const checkedAt = new Date();
+    await this.prisma.$transaction(entries.map((entry) => this.prisma.cdEntry.update({
+      where: { id: entry.id },
+      data: { estimatedValue: entry.discogsMarketMedian!, valueLastCheckedAt: checkedAt },
+    })));
+    return entries.length;
   }
 
   private reset(state: BackfillState): void {

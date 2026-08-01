@@ -32,6 +32,11 @@ test.describe('Stage Discogs Mock', () => {
     expect(await response.json()).toEqual([]);
   });
 
+  test('Offers Voice Entry for a Catalog Number', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: 'Speak Catalog Number' })).toBeVisible();
+  });
+
   test('Searches and Selects a Mock Discogs Release in the User Interface', async ({ page }) => {
     await page.goto('/');
     await page.getByPlaceholder('Artist').fill('Stage Mock Artist');
@@ -81,7 +86,7 @@ test.describe('Stage Discogs Mock', () => {
     await expect(page.getByText('Mocked CD Album', { exact: true })).toBeHidden();
   });
 
-  test('Locks Interaction While Selected Release Data Loads', async ({ page }) => {
+  test('Keeps Barcode Scanning Available While Selected Release Data Loads', async ({ page }) => {
     await page.route(/\/api\/discogs\/releases\/900101\/catalog-info$/, async (route) => {
       await new Promise((resolve) => setTimeout(resolve, 350));
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ label: 'Mock Records', catalogNumber: 'MOCK-CD-001', barcode: '0123456789012' }) });
@@ -93,9 +98,8 @@ test.describe('Stage Discogs Mock', () => {
     await page.getByRole('button', { name: 'Look Up', exact: true }).click();
     await page.getByText('Mocked CD Album', { exact: true }).click();
 
-    await expect(page.getByRole('status')).toContainText('Loading Selected Release');
-    await expect(page.getByRole('status')).toContainText('release-specific catalog data from Discogs');
-    await expect(page.locator('.app-layout')).toHaveAttribute('aria-busy', 'true');
+    await expect(page.locator('.app-layout')).toHaveAttribute('aria-busy', 'false');
+    await expect(page.getByRole('button', { name: 'Scan Barcode', exact: true })).toBeEnabled();
   });
 
   test('Skips eBay Values When the Search Toggle Is Off', async ({ page }) => {
@@ -107,6 +111,7 @@ test.describe('Stage Discogs Mock', () => {
 
     await page.goto('/');
     await page.getByLabel('Include Current eBay Auction Values').uncheck();
+    await page.getByLabel('Include Discogs Market Statistics').uncheck();
     await page.getByPlaceholder('Artist').fill('Stage Mock Artist');
     await page.getByPlaceholder('Album Title').fill('Mocked CD Album');
     await page.getByRole('button', { name: 'Look Up', exact: true }).click();
