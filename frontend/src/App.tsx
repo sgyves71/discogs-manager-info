@@ -1367,6 +1367,24 @@ function App() {
     }
   }
 
+  async function playPreviousLocalCopy() {
+    const currentPlayer = localAudioPlayer;
+    if (!currentPlayer) return;
+    try {
+      const query = new URLSearchParams({ cdEntryId: String(currentPlayer.catalogEntryId), trackId: String(currentPlayer.trackId) });
+      const response = await fetch(`/api/music-library/playback/previous?${query.toString()}`);
+      const data = await response.json() as { previous?: LocalAudioPlayer | null; error?: string };
+      if (!response.ok) throw new Error(data.error || 'Unable to find the previous local track.');
+      if (data.previous) {
+        setLocalAudioPlayer(data.previous);
+        return;
+      }
+      setPersonalMusicStatus('Reached the beginning of the available personal music playback queue.');
+    } catch (error) {
+      setPersonalMusicStatus(error instanceof Error ? error.message : 'Unable to find the previous local track.');
+    }
+  }
+
   async function syncPersonalTrackLocations() {
     if (!viewedEntry || !detailTracks.length || personalLocationSyncing) return;
     setPersonalLocationSyncing(true);
@@ -2269,7 +2287,7 @@ function App() {
       )}
       {catalogSaveError ? <div className="artist-summary-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setCatalogSaveError(null); }}><section className="artist-summary-dialog catalog-save-error-dialog" role="dialog" aria-modal="true" aria-label="Catalog save error"><button type="button" className="dialog-close-button dialog-close-sticky" aria-label="Close catalog save error" title="Close" onClick={() => setCatalogSaveError(null)}>×</button><div className="artist-summary-dialog-header"><h2>Cannot Save Catalog Entry</h2></div><p>{catalogSaveError}</p><div className="form-actions"><button type="button" autoFocus onClick={() => setCatalogSaveError(null)}>OK</button></div></section></div> : null}
       </main>
-      {localAudioPlayer ? <LocalAudioPlayer {...localAudioPlayer} onEnded={() => void playNextLocalCopy()} onClose={() => setLocalAudioPlayer(null)} onError={setPersonalMusicStatus} /> : null}
+      {localAudioPlayer ? <LocalAudioPlayer {...localAudioPlayer} onEnded={() => void playNextLocalCopy()} onPrevious={() => void playPreviousLocalCopy()} onNext={() => void playNextLocalCopy()} onClose={() => setLocalAudioPlayer(null)} onError={setPersonalMusicStatus} /> : null}
     </div>
   );
 }

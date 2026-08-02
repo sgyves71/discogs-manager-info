@@ -33,10 +33,22 @@ test.describe('Stage Personal Playback', () => {
     await expect(nextOnAlbum).toBeOK();
     expect(await nextOnAlbum.json()).toMatchObject({ next: { title: 'Stage Song Two', catalogEntryId: stageAlbum!.id } });
 
+    const firstInQueue = await request.get(`${apiUrl}/api/music-library/playback/previous?${new URLSearchParams({ cdEntryId: String(stageAlbum!.id), trackId: String(matches[0].libraryTrack.id) })}`);
+    await expect(firstInQueue).toBeOK();
+    expect(await firstInQueue.json()).toEqual({ previous: null });
+
+    const previousOnAlbum = await request.get(`${apiUrl}/api/music-library/playback/previous?${new URLSearchParams({ cdEntryId: String(stageAlbum!.id), trackId: String(matches[1].libraryTrack.id) })}`);
+    await expect(previousOnAlbum).toBeOK();
+    expect(await previousOnAlbum.json()).toMatchObject({ previous: { title: 'Stage Song One', catalogEntryId: stageAlbum!.id } });
+
     const nextAlbum = await request.get(`${apiUrl}/api/music-library/playback/next?${new URLSearchParams({ cdEntryId: String(stageAlbum!.id), trackId: String(matches[1].libraryTrack.id) })}`);
     await expect(nextAlbum).toBeOK();
     const nextAlbumPayload = await nextAlbum.json() as { next: { trackId: number; catalogEntryId: number; title: string } | null };
     expect(nextAlbumPayload.next).toMatchObject({ title: 'Zeta Song' });
+
+    const previousAlbum = await request.get(`${apiUrl}/api/music-library/playback/previous?${new URLSearchParams({ cdEntryId: String(nextAlbumPayload.next!.catalogEntryId), trackId: String(nextAlbumPayload.next!.trackId) })}`);
+    await expect(previousAlbum).toBeOK();
+    expect(await previousAlbum.json()).toMatchObject({ previous: { title: 'Stage Song Two', catalogEntryId: stageAlbum!.id } });
 
     const endOfQueue = await request.get(`${apiUrl}/api/music-library/playback/next?${new URLSearchParams({ cdEntryId: String(nextAlbumPayload.next!.catalogEntryId), trackId: String(nextAlbumPayload.next!.trackId) })}`);
     await expect(endOfQueue).toBeOK();

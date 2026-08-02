@@ -5,11 +5,13 @@ type LocalAudioPlayerProps = {
   title: string;
   subtitle: string;
   onEnded: () => void;
+  onPrevious: () => void;
+  onNext: () => void;
   onClose: () => void;
   onError: (message: string) => void;
 };
 
-export function LocalAudioPlayer({ trackId, title, subtitle, onEnded, onClose, onError }: LocalAudioPlayerProps) {
+export function LocalAudioPlayer({ trackId, title, subtitle, onEnded, onPrevious, onNext, onClose, onError }: LocalAudioPlayerProps) {
   const [errorMessage, setErrorMessage] = useState('');
 
   function handleError(event: SyntheticEvent<HTMLAudioElement>) {
@@ -31,6 +33,10 @@ export function LocalAudioPlayer({ trackId, title, subtitle, onEnded, onClose, o
     <aside className="local-audio-player" aria-label={`Playing local copy of ${title}`}>
       <div><strong>{title}</strong><span>{subtitle}</span></div>
       <button type="button" className="dialog-close-button" aria-label="Close audio player" title="Close player" onClick={onClose}>×</button>
+      <div className="local-audio-player-navigation" aria-label="Playback navigation">
+        <button type="button" className="secondary-button" onClick={onPrevious}>Previous</button>
+        <button type="button" className="secondary-button" onClick={onNext}>Next</button>
+      </div>
       <audio
         key={trackId}
         controls

@@ -856,6 +856,16 @@ button:disabled {
   width: 100%;
 }
 
+.local-audio-player-navigation {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.local-audio-player-navigation button {
+  flex: 1;
+}
+
 .local-audio-player-note,
 .local-audio-player-error {
   grid-column: 1 / -1;
