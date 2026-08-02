@@ -65,7 +65,12 @@ function normalizedMusicTokens(value: string): string[] {
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .split(/[^\p{L}\p{N}]+/u)
-    .map((token) => token.replace(/(.)\1+/gu, '$1'))
+    .map((token) => {
+      const collapsed = token.replace(/(.)\1+/gu, '$1');
+      if (collapsed.length > 4 && collapsed.endsWith('ies')) return `${collapsed.slice(0, -3)}y`;
+      if (collapsed.length > 4 && collapsed.endsWith('s') && !collapsed.endsWith('ss')) return collapsed.slice(0, -1);
+      return collapsed;
+    })
     .filter(Boolean);
 }
 
