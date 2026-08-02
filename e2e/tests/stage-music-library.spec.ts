@@ -12,7 +12,7 @@ test.describe('Stage Music Library', () => {
     const library = await response.json() as { rootPath: string | null; trackCount: number };
     expect(library.rootPath).toContain('e2e');
     expect(library.rootPath).toContain('fixtures');
-    expect(library.trackCount).toBe(2);
+    expect(library.trackCount).toBe(3);
   });
 
   test('Lists Indexed Artist and Album Folders', async ({ request }) => {
@@ -20,12 +20,15 @@ test.describe('Stage Music Library', () => {
     await expect(artistsResponse).toBeOK();
     const artists = await artistsResponse.json() as { folders: Array<{ folderPath: string; name: string; trackCount: number }> };
     expect(artists.folders).toHaveLength(1);
-    expect(artists.folders[0]).toMatchObject({ name: 'Stage Artist', trackCount: 2 });
+    expect(artists.folders[0]).toMatchObject({ name: 'Stage Artist', trackCount: 3 });
 
     const albumsResponse = await request.get(`${apiUrl}/api/music-library/folders/albums?${new URLSearchParams({ artistFolderPath: artists.folders[0].folderPath })}`);
     await expect(albumsResponse).toBeOK();
     const albums = await albumsResponse.json() as { folders: Array<{ name: string; album: string; trackCount: number }> };
-    expect(albums.folders).toEqual([expect.objectContaining({ name: 'Stage Album', album: 'Stage Album', trackCount: 2 })]);
+    expect(albums.folders).toEqual([
+      expect.objectContaining({ name: 'Stage Album', album: 'Stage Album', trackCount: 2 }),
+      expect.objectContaining({ name: 'Zeta Album', album: 'Zeta Album', trackCount: 1 }),
+    ]);
   });
 
   test('Rejects a Music Library Path Outside the File System', async ({ request }) => {
