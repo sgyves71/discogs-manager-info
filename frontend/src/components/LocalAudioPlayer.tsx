@@ -4,11 +4,12 @@ type LocalAudioPlayerProps = {
   trackId: number;
   title: string;
   subtitle: string;
+  onEnded: () => void;
   onClose: () => void;
   onError: (message: string) => void;
 };
 
-export function LocalAudioPlayer({ trackId, title, subtitle, onClose, onError }: LocalAudioPlayerProps) {
+export function LocalAudioPlayer({ trackId, title, subtitle, onEnded, onClose, onError }: LocalAudioPlayerProps) {
   const [errorMessage, setErrorMessage] = useState('');
 
   function handleError(event: SyntheticEvent<HTMLAudioElement>) {
@@ -37,6 +38,7 @@ export function LocalAudioPlayer({ trackId, title, subtitle, onClose, onError }:
         preload="metadata"
         src={`/api/music-library/tracks/${trackId}/stream`}
         onPlay={() => setErrorMessage('')}
+        onEnded={onEnded}
         onError={handleError}
       />
       {errorMessage ? <span className="local-audio-player-error">{errorMessage}</span> : null}

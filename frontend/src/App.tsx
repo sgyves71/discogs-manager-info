@@ -202,7 +202,7 @@ type PersonalTrackMatch = {
   libraryTrack: { id: number; artist: string; album: string; title: string; trackNumber: number | null; format: string | null };
 };
 
-type LocalAudioPlayer = { trackId: number; title: string; subtitle: string };
+type LocalAudioPlayer = { trackId: number; catalogEntryId: number; title: string; subtitle: string };
 
 type PersonalArtistFolder = { folderPath: string; name: string; trackCount: number };
 type PersonalBrowsableAlbumFolder = { folderPath: string; name: string; album: string; trackCount: number };
@@ -1343,8 +1343,27 @@ function App() {
   }
 
   function playLocalCopy(match: PersonalTrackMatch) {
+    if (!viewedEntry) return;
     setYouTubePlayer(null);
-    setLocalAudioPlayer({ trackId: match.libraryTrack.id, title: match.libraryTrack.title, subtitle: `${match.libraryTrack.artist} — ${match.libraryTrack.album}` });
+    setLocalAudioPlayer({ trackId: match.libraryTrack.id, catalogEntryId: viewedEntry.id, title: match.libraryTrack.title, subtitle: `${match.libraryTrack.artist} — ${match.libraryTrack.album}` });
+  }
+
+  async function playNextLocalCopy() {
+    const currentPlayer = localAudioPlayer;
+    if (!currentPlayer) return;
+    try {
+      const query = new URLSearchParams({ cdEntryId: String(currentPlayer.catalogEntryId), trackId: String(currentPlayer.trackId) });
+      const response = await fetch(`/api/music-library/playback/next?${query.toString()}`);
+      const data = await response.json() as { next?: LocalAudioPlayer | null; error?: string };
+      if (!response.ok) throw new Error(data.error || 'Unable to find the next local track.');
+      if (data.next) {
+        setLocalAudioPlayer(data.next);
+        return;
+      }
+      setPersonalMusicStatus('Reached the end of the available personal music playback queue.');
+    } catch (error) {
+      setPersonalMusicStatus(error instanceof Error ? error.message : 'Unable to find the next local track.');
+    }
   }
 
   /* async function findPersonalAlbumFolder() {
@@ -2225,7 +2244,7 @@ function App() {
       )}
       {catalogSaveError ? <div className="artist-summary-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setCatalogSaveError(null); }}><section className="artist-summary-dialog catalog-save-error-dialog" role="dialog" aria-modal="true" aria-label="Catalog save error"><button type="button" className="dialog-close-button dialog-close-sticky" aria-label="Close catalog save error" title="Close" onClick={() => setCatalogSaveError(null)}>×</button><div className="artist-summary-dialog-header"><h2>Cannot Save Catalog Entry</h2></div><p>{catalogSaveError}</p><div className="form-actions"><button type="button" autoFocus onClick={() => setCatalogSaveError(null)}>OK</button></div></section></div> : null}
       </main>
-      {localAudioPlayer ? <LocalAudioPlayer {...localAudioPlayer} onClose={() => setLocalAudioPlayer(null)} onError={setPersonalMusicStatus} /> : null}
+      {localAudioPlayer ? <LocalAudioPlayer {...localAudioPlayer} onEnded={() => void playNextLocalCopy()} onClose={() => setLocalAudioPlayer(null)} onError={setPersonalMusicStatus} /> : null}
     </div>
   );
 }

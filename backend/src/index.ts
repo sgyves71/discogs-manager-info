@@ -409,6 +409,52 @@ app.get('/api/cds/:id/personal-track-matches', async (req, res) => {
   res.json({ matches: await prisma.personalTrackMatch.findMany({ where: { cdEntryId }, include: { libraryTrack: true } }) });
 });
 
+app.get('/api/music-library/playback/next', async (req, res) => {
+  const cdEntryId = Number(req.query.cdEntryId);
+  const trackId = Number(req.query.trackId);
+  if (!Number.isInteger(cdEntryId) || cdEntryId <= 0 || !Number.isInteger(trackId) || trackId <= 0) {
+    res.status(400).json({ error: 'The current catalog entry and local track are required.' });
+    return;
+  }
+
+  const toPlaybackTrack = (match: { libraryTrack: { id: number; title: string; artist: string; album: string } }, entryId: number) => ({
+    trackId: match.libraryTrack.id,
+    catalogEntryId: entryId,
+    title: match.libraryTrack.title,
+    subtitle: `${match.libraryTrack.artist} — ${match.libraryTrack.album}`,
+  });
+  const currentAlbumMatches = await prisma.personalTrackMatch.findMany({
+    where: { cdEntryId },
+    include: { libraryTrack: true },
+    orderBy: [{ libraryTrack: { discNumber: 'asc' } }, { libraryTrack: { trackNumber: 'asc' } }, { libraryTrack: { title: 'asc' } }],
+  });
+  const currentIndex = currentAlbumMatches.findIndex((match) => match.libraryTrackId === trackId);
+  const nextOnCurrentAlbum = currentIndex >= 0 ? currentAlbumMatches[currentIndex + 1] : null;
+  if (nextOnCurrentAlbum) {
+    res.json({ next: toPlaybackTrack(nextOnCurrentAlbum, cdEntryId) });
+    return;
+  }
+
+  const playableEntries = await prisma.cdEntry.findMany({
+    where: { personalTrackMatches: { some: {} } },
+    select: { id: true },
+    orderBy: [{ artistSortName: 'asc' }, { artist: 'asc' }, { title: 'asc' }],
+  });
+  const currentEntryIndex = playableEntries.findIndex((entry) => entry.id === cdEntryId);
+  for (const entry of playableEntries.slice(currentEntryIndex + 1)) {
+    const firstMatch = await prisma.personalTrackMatch.findFirst({
+      where: { cdEntryId: entry.id },
+      include: { libraryTrack: true },
+      orderBy: [{ libraryTrack: { discNumber: 'asc' } }, { libraryTrack: { trackNumber: 'asc' } }, { libraryTrack: { title: 'asc' } }],
+    });
+    if (firstMatch) {
+      res.json({ next: toPlaybackTrack(firstMatch, entry.id) });
+      return;
+    }
+  }
+  res.json({ next: null });
+});
+
 app.get('/api/music-library/tracks/:id/stream', async (req, res) => {
   const trackId = Number(req.params.id);
   res.once('finish', () => recordPlaybackDiagnostic(req, res, trackId));
