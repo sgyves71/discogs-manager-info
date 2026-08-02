@@ -409,6 +409,65 @@ app.get('/api/cds/:id/personal-track-matches', async (req, res) => {
   res.json({ matches: await prisma.personalTrackMatch.findMany({ where: { cdEntryId }, include: { libraryTrack: true } }) });
 });
 
+app.post('/api/cds/:id/personal-track-matches/sync', async (req, res) => {
+  const cdEntryId = Number(req.params.id);
+  const tracks = Array.isArray(req.body?.tracks)
+    ? req.body.tracks
+      .map((track: unknown) => {
+        const candidate = track as { trackKey?: unknown; title?: unknown };
+        return { trackKey: String(candidate.trackKey ?? '').trim(), title: String(candidate.title ?? '').trim() };
+      })
+      .filter((track: { trackKey: string; title: string }) => track.trackKey && track.title)
+    : [];
+  if (!Number.isInteger(cdEntryId) || cdEntryId <= 0 || !tracks.length) {
+    res.status(400).json({ error: 'A catalog entry and at least one track are required.' });
+    return;
+  }
+
+  const [library, entry] = await Promise.all([getMusicLibrary(), prisma.cdEntry.findUnique({ where: { id: cdEntryId } })]);
+  if (!library || !entry) {
+    res.status(404).json({ error: library ? 'Catalog entry not found.' : 'Choose and scan a music library folder first.' });
+    return;
+  }
+  const mappedFolderPath = entry.personalAlbumFolderPath ? path.resolve(entry.personalAlbumFolderPath) : null;
+  const mappedCandidates = mappedFolderPath
+    ? await prisma.musicLibraryTrack.findMany({ where: { libraryId: library.id, filePath: { startsWith: `${mappedFolderPath}${path.sep}` } }, orderBy: [{ discNumber: 'asc' }, { trackNumber: 'asc' }] })
+    : [];
+  const candidates = mappedCandidates.length ? mappedCandidates : await findArtistLibraryTracks(library.id, entry.artist);
+  const existingMatches = await prisma.personalTrackMatch.findMany({ where: { cdEntryId }, include: { libraryTrack: true } });
+  const indexedTrackCount = candidates.length || await prisma.musicLibraryTrack.count({ where: { libraryId: library.id } });
+  if (!candidates.length) {
+    res.json({ status: indexedTrackCount ? 'notFound' : 'unindexed', matchedCount: 0, unmatchedCount: tracks.length, matches: existingMatches });
+    return;
+  }
+
+  const previousMatchByKey = new Map(existingMatches.map((match) => [match.trackKey, match.libraryTrackId]));
+  const usedLibraryTrackIds = new Set<number>();
+  const savedMatches = [];
+  for (const track of tracks) {
+    const rankedCandidates = candidates
+      .map((candidate) => {
+        const albumScore = scoreMusicTitleMatch(entry.title, candidate.album);
+        const titleScore = scoreMusicTitleMatch(track.title, candidate.title);
+        return { candidate, albumScore, titleScore, score: (albumScore * 0.6) + (titleScore * 0.4) };
+      })
+      .filter((candidate) => (mappedCandidates.length ? candidate.titleScore >= 0.75 : candidate.albumScore >= 0.55 && candidate.titleScore >= 0.75))
+      .filter((candidate) => !usedLibraryTrackIds.has(candidate.candidate.id) || previousMatchByKey.get(track.trackKey) === candidate.candidate.id)
+      .sort((left, right) => right.score - left.score || right.albumScore - left.albumScore || right.titleScore - left.titleScore);
+    const libraryTrack = rankedCandidates[0]?.candidate;
+    if (!libraryTrack) continue;
+    usedLibraryTrackIds.add(libraryTrack.id);
+    savedMatches.push(await prisma.personalTrackMatch.upsert({
+      where: { cdEntryId_trackKey: { cdEntryId, trackKey: track.trackKey } },
+      create: { cdEntryId, trackKey: track.trackKey, libraryTrackId: libraryTrack.id },
+      update: { libraryTrackId: libraryTrack.id, matchedAt: new Date() },
+      include: { libraryTrack: true },
+    }));
+  }
+  const matches = await prisma.personalTrackMatch.findMany({ where: { cdEntryId }, include: { libraryTrack: true } });
+  res.json({ status: savedMatches.length ? 'matched' : 'notFound', matchedCount: savedMatches.length, unmatchedCount: tracks.length - savedMatches.length, matches });
+});
+
 app.get('/api/music-library/playback/next', async (req, res) => {
   const cdEntryId = Number(req.query.cdEntryId);
   const trackId = Number(req.query.trackId);

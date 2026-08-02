@@ -349,6 +349,7 @@ function App() {
   const [youTubePlayer, setYouTubePlayer] = useState<YouTubePlayer | null>(null);
   const [personalTrackMatches, setPersonalTrackMatches] = useState<PersonalTrackMatch[]>([]);
   const [personalMusicStatus, setPersonalMusicStatus] = useState('');
+  const [personalLocationSyncing, setPersonalLocationSyncing] = useState(false);
   const [localAudioPlayer, setLocalAudioPlayer] = useState<LocalAudioPlayer | null>(null);
   const [personalArtistFolders, setPersonalArtistFolders] = useState<PersonalArtistFolder[] | null>(null);
   const [personalBrowsableAlbumFolders, setPersonalBrowsableAlbumFolders] = useState<PersonalBrowsableAlbumFolder[] | null>(null);
@@ -1366,6 +1367,29 @@ function App() {
     }
   }
 
+  async function syncPersonalTrackLocations() {
+    if (!viewedEntry || !detailTracks.length || personalLocationSyncing) return;
+    setPersonalLocationSyncing(true);
+    setPersonalMusicStatus(`Syncing personal locations for ${detailTracks.length} tracks...`);
+    try {
+      const response = await fetch(`/api/cds/${viewedEntry.id}/personal-track-matches/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tracks: detailTracks.map((track) => ({ trackKey: trackKey(track), title: track.title })) }),
+      });
+      const responseText = await response.text();
+      let data: { matches?: PersonalTrackMatch[]; matchedCount?: number; unmatchedCount?: number; error?: string } = {};
+      try { data = responseText ? JSON.parse(responseText) as typeof data : {}; } catch { /* malformed responses are handled below */ }
+      if (!response.ok) throw new Error(data.error || 'Unable to sync personal music locations.');
+      setPersonalTrackMatches(data.matches ?? []);
+      setPersonalMusicStatus(`${data.matchedCount ?? 0} of ${detailTracks.length} personal track locations synced${data.unmatchedCount ? `; ${data.unmatchedCount} not found.` : '.'}`);
+    } catch (error) {
+      setPersonalMusicStatus(error instanceof Error ? error.message : 'Unable to sync personal music locations.');
+    } finally {
+      setPersonalLocationSyncing(false);
+    }
+  }
+
   /* async function findPersonalAlbumFolder() {
     if (!viewedEntry) return;
     setPersonalMusicStatus(`Looking for the local album folder for “${viewedEntry.title}”...`);
@@ -2101,6 +2125,7 @@ function App() {
                   <button type="button" className="dialog-close-button dialog-close-sticky" aria-label="Close tracklist" title="Close" onClick={() => setShowTracklist(false)}>×</button>
                   <div className="tracklist-header">
                     <div><h3>Tracklist</h3><p>{viewedEntry.artist} — {viewedEntry.title}</p></div>
+                    <button type="button" className="secondary-button" disabled={!detailTracks.length || personalLocationSyncing} onClick={() => void syncPersonalTrackLocations()}>{personalLocationSyncing ? 'Syncing Locations...' : 'Sync Personal Locations'}</button>
                   </div>
                   {detailTracksStatus ? <p className="hint">{detailTracksStatus}</p> : null}
                   {personalMusicStatus ? <p className="hint">{personalMusicStatus}</p> : null}
