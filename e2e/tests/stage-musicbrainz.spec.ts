@@ -24,7 +24,7 @@ test.describe('Stage MusicBrainz Search', () => {
     const response = await request.get(`${apiUrl}/api/musicbrainz/context?artist=Stage%20Mock%20Artist&album=Mocked%20CD%20Album`);
     await expect(response).toBeOK();
     const payload = await response.json() as { artist: { annotation: string; genres: string[] } | null; releaseGroup: { annotation: string } | null };
-    expect(payload.artist).toMatchObject({ annotation: expect.stringContaining('artist-summary fallback'), genres: ['Rock'] });
+    expect(payload.artist).toMatchObject({ annotation: expect.stringContaining('artist-summary fallback'), genres: ['heavy metal'] });
     expect(payload.releaseGroup).toMatchObject({ annotation: expect.stringContaining('release-group notes') });
   });
 
@@ -42,6 +42,7 @@ test.describe('Stage MusicBrainz Search', () => {
 
       await expect(page.getByText('Artist Details', { exact: false })).toBeVisible();
       await expect(page.getByText('Artist Details - MusicBrainz', { exact: true })).toBeVisible();
+      await expect(page.getByText('Genres: Heavy Metal', { exact: true }).first()).toBeVisible();
       await expect(page.getByText(/MusicBrainz artist-summary fallback order/i).first()).toBeVisible();
       await expect(page.getByText(/MusicBrainz release-group notes/i)).toBeVisible();
     } finally {

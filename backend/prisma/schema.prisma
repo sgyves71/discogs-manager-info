@@ -24,6 +24,8 @@ model CdEntry {
   barcode          String?
   mediaCondition   String?
   estimatedValue   Float?
+  estimatedValueIsManual Boolean @default(false)
+  estimatedValueReviewedAt DateTime?
   valueLastCheckedAt DateTime?
   discogsLastSoldAt DateTime?
   discogsMarketLow Float?

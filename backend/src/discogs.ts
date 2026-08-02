@@ -117,6 +117,22 @@ type DiscogsArtistDetails = {
   profile?: string | null;
 };
 
+type DiscogsIdentityResponse = {
+  username?: string | null;
+};
+
+type DiscogsCollectionResponse = {
+  pagination?: { pages?: number | null };
+  releases?: Array<{
+    instance_id?: number | null;
+    basic_information?: { id?: number | null };
+  }>;
+};
+
+type DiscogsAddToCollectionResponse = {
+  instance_id?: number | null;
+};
+
 export type DiscogsReleaseContext = {
   description: string | null;
   descriptionSource: 'release' | 'album' | 'artist' | null;
@@ -140,6 +156,11 @@ export type DiscogsReleaseCatalogInfo = {
   label: string | null;
   catalogNumber: string | null;
   barcode: string | null;
+};
+
+export type DiscogsCollectionRelease = {
+  releaseId: number;
+  instanceId: number | null;
 };
 
 type DiscogsPriceSuggestion = {
@@ -425,6 +446,53 @@ export async function getDiscogsPriceSuggestions(
 
     return [{ condition, value, currency: suggestion?.currency?.trim() || null }];
   });
+}
+
+function authenticatedDiscogsHeaders(token: string) {
+  return {
+    Authorization: `Discogs token=${token}`,
+    'User-Agent': 'DiscogsManager/0.1 +http://localhost',
+  };
+}
+
+export async function getDiscogsUsername(token: string): Promise<string> {
+  const response = await requestDiscogs(() => axios.get<DiscogsIdentityResponse>('https://api.discogs.com/oauth/identity', {
+    headers: authenticatedDiscogsHeaders(token),
+    timeout: 6_000,
+  }));
+  const username = response.data?.username?.trim();
+  if (!username) throw new Error('Discogs did not return an account username for the configured token.');
+  return username;
+}
+
+export async function getDiscogsCollectionReleases(username: string, token: string): Promise<DiscogsCollectionRelease[]> {
+  const releases: DiscogsCollectionRelease[] = [];
+  let page = 1;
+  let pages = 1;
+  while (page <= pages) {
+    const response = await requestDiscogs(() => axios.get<DiscogsCollectionResponse>(
+      `https://api.discogs.com/users/${encodeURIComponent(username)}/collection/folders/0/releases`,
+      { params: { page, per_page: 100 }, headers: authenticatedDiscogsHeaders(token), timeout: 10_000 },
+    ));
+    pages = Math.max(1, Number(response.data?.pagination?.pages) || 1);
+    for (const release of response.data?.releases ?? []) {
+      const releaseId = release.basic_information?.id;
+      if (typeof releaseId === 'number' && releaseId > 0) {
+        releases.push({ releaseId, instanceId: typeof release.instance_id === 'number' ? release.instance_id : null });
+      }
+    }
+    page += 1;
+  }
+  return releases;
+}
+
+export async function addDiscogsReleaseToCollection(username: string, releaseId: number, token: string): Promise<number | null> {
+  const response = await requestDiscogs(() => axios.post<DiscogsAddToCollectionResponse>(
+    `https://api.discogs.com/users/${encodeURIComponent(username)}/collection/folders/0/releases/${releaseId}`,
+    undefined,
+    { headers: authenticatedDiscogsHeaders(token), timeout: 10_000 },
+  ));
+  return typeof response.data?.instance_id === 'number' ? response.data.instance_id : null;
 }
 
 function normalizeStringValue(value: unknown): string | null {

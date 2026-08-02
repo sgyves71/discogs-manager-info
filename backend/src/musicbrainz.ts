@@ -53,7 +53,6 @@ export type MusicBrainzArtistContext = {
   ended: boolean | null;
   annotation: string | null;
   genres: string[];
-  tags: string[];
 };
 
 export type MusicBrainzReleaseGroupContext = {
@@ -63,7 +62,6 @@ export type MusicBrainzReleaseGroupContext = {
   firstReleaseDate: string | null;
   annotation: string | null;
   genres: string[];
-  tags: string[];
 };
 
 export type MusicBrainzCatalogContext = {
@@ -75,12 +73,10 @@ type MusicBrainzTag = { name?: string };
 type MusicBrainzArtistDetailResponse = {
   annotation?: string;
   genres?: MusicBrainzTag[];
-  tags?: MusicBrainzTag[];
 };
 type MusicBrainzReleaseGroupDetailResponse = {
   annotation?: string;
   genres?: MusicBrainzTag[];
-  tags?: MusicBrainzTag[];
 };
 
 function delay(milliseconds: number): Promise<void> {
@@ -186,21 +182,21 @@ export class MusicBrainzClient {
   }
 
   private async getArtistContext(artist: MusicBrainzArtistResult): Promise<MusicBrainzArtistContext> {
-    const response = await this.get<MusicBrainzArtistDetailResponse>(`/artist/${artist.id}`, { inc: 'annotation+genres+tags' });
+    const response = await this.get<MusicBrainzArtistDetailResponse>(`/artist/${artist.id}`, { inc: 'annotation+genres' });
     const detail = response.data;
     return {
       id: artist.id, name: artist.name, type: artist.type, country: artist.country, disambiguation: artist.disambiguation,
       beginDate: artist.beginDate, endDate: artist.endDate, ended: artist.ended,
-      annotation: nullableText(detail.annotation), genres: normalizedNames(detail.genres), tags: normalizedNames(detail.tags),
+      annotation: nullableText(detail.annotation), genres: normalizedNames(detail.genres),
     };
   }
 
   private async getReleaseGroupContext(releaseGroup: MusicBrainzReleaseGroupResult): Promise<MusicBrainzReleaseGroupContext> {
-    const response = await this.get<MusicBrainzReleaseGroupDetailResponse>(`/release-group/${releaseGroup.id}`, { inc: 'annotation+genres+tags' });
+    const response = await this.get<MusicBrainzReleaseGroupDetailResponse>(`/release-group/${releaseGroup.id}`, { inc: 'annotation+genres' });
     const detail = response.data;
     return {
       id: releaseGroup.id, title: releaseGroup.title, primaryType: releaseGroup.primaryType, firstReleaseDate: releaseGroup.firstReleaseDate,
-      annotation: nullableText(detail.annotation), genres: normalizedNames(detail.genres), tags: normalizedNames(detail.tags),
+      annotation: nullableText(detail.annotation), genres: normalizedNames(detail.genres),
     };
   }
 

@@ -9,6 +9,8 @@ export type CdEntry = {
   genre?: string | null;
   style?: string | null;
   estimatedValue: number | null;
+  estimatedValueIsManual?: boolean;
+  estimatedValueReviewedAt?: string | null;
   notes: string | null;
   discogsId: number | null;
   discogsUri: string | null;

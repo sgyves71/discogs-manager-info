@@ -4,12 +4,14 @@ import dotenv from 'dotenv';
 import path from 'node:path';
 import { createReadStream, promises as fs } from 'node:fs';
 import { PrismaClient } from '@prisma/client';
-import { cleanDiscogsText, getDiscogsPriceSuggestion, getDiscogsPriceSuggestions, getDiscogsReleaseCatalogInfo, getDiscogsReleaseContext, getDiscogsReleaseCover, getDiscogsReleaseImages, getDiscogsReleaseTracklist, searchDiscogsReleases, stripDiscogsArtistDisambiguator } from './discogs.js';
+import { cleanDiscogsText, getDiscogsPriceSuggestions, getDiscogsReleaseCatalogInfo, getDiscogsReleaseContext, getDiscogsReleaseCover, getDiscogsReleaseImages, getDiscogsReleaseTracklist, searchDiscogsReleases, stripDiscogsArtistDisambiguator } from './discogs.js';
 import { getMusicBrainzCatalogContext, searchMusicBrainz } from './musicbrainz.js';
 import { getEbayActiveListingStats, getEbaySoldListingStats } from './ebay.js';
 import { findYouTubeMatches } from './youtube.js';
 import { artistSearchFallbacks, contentTypeForAudioFile, isDirectory, normalizeMusicText, pathIsWithinRoot, readMusicFileMetadata, scoreMusicTextMatch, scoreMusicTitleMatch, walkAudioFiles } from './music-library.js';
 import { CatalogEnrichmentService } from './services/catalog-enrichment-service.js';
+import { DiscogsCollectionSyncService } from './services/discogs-collection-sync-service.js';
+import { fetchDiscogsMarketStats } from './discogs-market-stats.js';
 import { getStageDiscogsCatalogInfo, getStageDiscogsContext, getStageDiscogsCover, getStageDiscogsImages, getStageDiscogsTracklist, searchStageDiscogsReleases } from './stage-discogs-fixture.js';
 import { getStageMusicBrainzCatalogContext, searchStageMusicBrainz } from './stage-musicbrainz-fixture.js';
 
@@ -41,11 +43,26 @@ const ebayMarketplaceId = process.env.EBAY_MARKETPLACE_ID?.trim() || 'EBAY_US';
 const youtubeApiKey = process.env.YOUTUBE_API_KEY?.trim();
 const isStageEnvironment = process.env.APP_ENV === 'stage';
 const catalogEnrichment = new CatalogEnrichmentService(prisma, discogsToken, isStageEnvironment);
+const discogsCollectionSync = new DiscogsCollectionSyncService(prisma, discogsToken, isStageEnvironment);
 const coverCache = new Map<number, string | null>();
 const pendingCoverLookups = new Map<number, Promise<string | null>>();
 const libraryScanState: { status: 'idle' | 'scanning' | 'complete' | 'failed'; scannedFiles: number; indexedFiles: number; skippedFiles: number; error: string | null } = {
   status: 'idle', scannedFiles: 0, indexedFiles: 0, skippedFiles: 0, error: null,
 };
+const playbackDiagnostics: { at: string; trackId: number; method: string; range: string | null; status: number; contentRange: string | null; userAgent: string | null }[] = [];
+
+function recordPlaybackDiagnostic(req: express.Request, res: express.Response, trackId: number) {
+  playbackDiagnostics.unshift({
+    at: new Date().toISOString(),
+    trackId,
+    method: req.method,
+    range: req.headers.range ?? null,
+    status: res.statusCode,
+    contentRange: res.getHeader('Content-Range')?.toString() ?? null,
+    userAgent: req.headers['user-agent'] ?? null,
+  });
+  playbackDiagnostics.splice(20);
+}
 
 function catalogArtistSortName(artist: string): string {
   return artist.replace(/^the\s+/iu, '').trim() || artist;
@@ -392,8 +409,55 @@ app.get('/api/cds/:id/personal-track-matches', async (req, res) => {
   res.json({ matches: await prisma.personalTrackMatch.findMany({ where: { cdEntryId }, include: { libraryTrack: true } }) });
 });
 
+app.get('/api/music-library/playback/next', async (req, res) => {
+  const cdEntryId = Number(req.query.cdEntryId);
+  const trackId = Number(req.query.trackId);
+  if (!Number.isInteger(cdEntryId) || cdEntryId <= 0 || !Number.isInteger(trackId) || trackId <= 0) {
+    res.status(400).json({ error: 'The current catalog entry and local track are required.' });
+    return;
+  }
+
+  const toPlaybackTrack = (match: { libraryTrack: { id: number; title: string; artist: string; album: string } }, entryId: number) => ({
+    trackId: match.libraryTrack.id,
+    catalogEntryId: entryId,
+    title: match.libraryTrack.title,
+    subtitle: `${match.libraryTrack.artist} — ${match.libraryTrack.album}`,
+  });
+  const currentAlbumMatches = await prisma.personalTrackMatch.findMany({
+    where: { cdEntryId },
+    include: { libraryTrack: true },
+    orderBy: [{ libraryTrack: { discNumber: 'asc' } }, { libraryTrack: { trackNumber: 'asc' } }, { libraryTrack: { title: 'asc' } }],
+  });
+  const currentIndex = currentAlbumMatches.findIndex((match) => match.libraryTrackId === trackId);
+  const nextOnCurrentAlbum = currentIndex >= 0 ? currentAlbumMatches[currentIndex + 1] : null;
+  if (nextOnCurrentAlbum) {
+    res.json({ next: toPlaybackTrack(nextOnCurrentAlbum, cdEntryId) });
+    return;
+  }
+
+  const playableEntries = await prisma.cdEntry.findMany({
+    where: { personalTrackMatches: { some: {} } },
+    select: { id: true },
+    orderBy: [{ artistSortName: 'asc' }, { artist: 'asc' }, { title: 'asc' }],
+  });
+  const currentEntryIndex = playableEntries.findIndex((entry) => entry.id === cdEntryId);
+  for (const entry of playableEntries.slice(currentEntryIndex + 1)) {
+    const firstMatch = await prisma.personalTrackMatch.findFirst({
+      where: { cdEntryId: entry.id },
+      include: { libraryTrack: true },
+      orderBy: [{ libraryTrack: { discNumber: 'asc' } }, { libraryTrack: { trackNumber: 'asc' } }, { libraryTrack: { title: 'asc' } }],
+    });
+    if (firstMatch) {
+      res.json({ next: toPlaybackTrack(firstMatch, entry.id) });
+      return;
+    }
+  }
+  res.json({ next: null });
+});
+
 app.get('/api/music-library/tracks/:id/stream', async (req, res) => {
   const trackId = Number(req.params.id);
+  res.once('finish', () => recordPlaybackDiagnostic(req, res, trackId));
   const libraryTrack = Number.isInteger(trackId) && trackId > 0
     ? await prisma.musicLibraryTrack.findUnique({ where: { id: trackId }, include: { library: true } })
     : null;
@@ -407,14 +471,23 @@ app.get('/api/music-library/tracks/:id/stream', async (req, res) => {
     const range = req.headers.range;
     res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Content-Type', contentTypeForAudioFile(libraryTrack.filePath));
+    res.setHeader('Content-Disposition', 'inline');
     if (!range) {
       res.setHeader('Content-Length', fileSize);
-      createReadStream(libraryTrack.filePath).pipe(res);
+      const stream = createReadStream(libraryTrack.filePath);
+      stream.on('error', () => res.destroy());
+      stream.pipe(res);
       return;
     }
     const matchedRange = /^bytes=(\d*)-(\d*)$/u.exec(range);
-    const start = matchedRange?.[1] ? Number(matchedRange[1]) : 0;
-    const end = matchedRange?.[2] ? Number(matchedRange[2]) : fileSize - 1;
+    const requestedStart = matchedRange?.[1];
+    const requestedEnd = matchedRange?.[2];
+    const suffixLength = !requestedStart && requestedEnd ? Number(requestedEnd) : null;
+    const start = requestedStart ? Number(requestedStart) : suffixLength ? Math.max(fileSize - suffixLength, 0) : 0;
+    // Browsers, including Chrome on iPhone, may request a range that extends
+    // beyond a short file. HTTP range semantics require us to serve the
+    // available portion rather than reject that otherwise valid request.
+    const end = requestedStart && requestedEnd ? Math.min(Number(requestedEnd), fileSize - 1) : fileSize - 1;
     if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end >= fileSize || start > end) {
       res.status(416).setHeader('Content-Range', `bytes */${fileSize}`).end();
       return;
@@ -422,14 +495,39 @@ app.get('/api/music-library/tracks/:id/stream', async (req, res) => {
     res.status(206);
     res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
     res.setHeader('Content-Length', end - start + 1);
-    createReadStream(libraryTrack.filePath, { start, end }).pipe(res);
+    const stream = createReadStream(libraryTrack.filePath, { start, end });
+    stream.on('error', () => res.destroy());
+    stream.pipe(res);
   } catch {
     res.status(404).end();
   }
 });
 
+app.get('/api/music-library/playback-diagnostics', (_req, res) => {
+  res.json({ requests: playbackDiagnostics });
+});
+
+app.get('/api/discogs/collection-sync', async (_req, res) => {
+  res.json({ ...(await discogsCollectionSync.getPreview()), sync: discogsCollectionSync.state });
+});
+
+app.post('/api/discogs/collection-sync', async (_req, res) => {
+  if (discogsCollectionSync.state.status === 'running') {
+    res.status(409).json({ error: 'A Discogs collection sync is already running.' });
+    return;
+  }
+  const preview = await discogsCollectionSync.getPreview();
+  if (!preview.configured) {
+    res.status(503).json({ error: 'Discogs authentication is not configured.' });
+    return;
+  }
+  void discogsCollectionSync.start().catch((error) => console.error('Discogs collection sync failed:', error));
+  res.status(202).json(discogsCollectionSync.state);
+});
+
 app.get('/api/cds', async (req, res) => {
   const query = String(req.query.q || '').trim();
+  const sort = String(req.query.sort || 'artist');
   const requestedPage = Number(req.query.page || 1);
   const requestedPageSize = Number(req.query.pageSize || 24);
   const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
@@ -442,11 +540,16 @@ app.get('/api/cds', async (req, res) => {
       { barcode: { contains: query } },
     ],
   } : undefined;
+  const orderBy = sort === 'discogs-median-desc'
+    ? [{ discogsMarketMedian: 'desc' as const }, { artistSortName: 'asc' as const }, { title: 'asc' as const }]
+    : sort === 'estimated-value-desc'
+      ? [{ estimatedValue: 'desc' as const }, { artistSortName: 'asc' as const }, { title: 'asc' as const }]
+      : [{ artistSortName: 'asc' as const }, { artist: 'asc' as const }, { title: 'asc' as const }];
 
   const [items, total] = await prisma.$transaction([
     prisma.cdEntry.findMany({
       where,
-      orderBy: [{ artistSortName: 'asc' }, { artist: 'asc' }, { title: 'asc' }],
+      orderBy,
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
@@ -455,6 +558,19 @@ app.get('/api/cds', async (req, res) => {
   res.json({
     items: items.map(({ coverImageData, coverImageMimeType, ...item }) => ({ ...item, hasCover: Boolean(coverImageData && coverImageMimeType) })),
     total, page, pageSize,
+  });
+});
+
+app.get('/api/catalog/statistics', async (_req, res) => {
+  const [totalEntries, medianValues, estimatedValues] = await Promise.all([
+    prisma.cdEntry.count(),
+    prisma.cdEntry.aggregate({ where: { discogsMarketMedian: { not: null } }, _count: { discogsMarketMedian: true }, _sum: { discogsMarketMedian: true } }),
+    prisma.cdEntry.aggregate({ where: { estimatedValue: { not: null } }, _count: { estimatedValue: true }, _sum: { estimatedValue: true } }),
+  ]);
+  res.json({
+    totalEntries,
+    discogsMedian: { count: medianValues._count.discogsMarketMedian, total: medianValues._sum.discogsMarketMedian ?? 0 },
+    estimatedValue: { count: estimatedValues._count.estimatedValue, total: estimatedValues._sum.estimatedValue ?? 0 },
   });
 });
 
@@ -566,7 +682,7 @@ app.patch('/api/cds/:id/estimated-value', async (req, res) => {
   try {
     const entry = await prisma.cdEntry.update({
       where: { id: entryId },
-      data: { estimatedValue: estimatedValue === null ? null : estimatedValue, valueLastCheckedAt: null },
+      data: { estimatedValue: estimatedValue === null ? null : estimatedValue, estimatedValueIsManual: estimatedValue !== null, estimatedValueReviewedAt: new Date(), valueLastCheckedAt: null },
     });
     res.json(entry);
   } catch {
@@ -871,6 +987,25 @@ app.get('/api/discogs/releases/:id/catalog-info', async (req, res) => {
   }
 });
 
+app.get('/api/discogs/releases/:id/market-stats', async (req, res) => {
+  const releaseId = Number(req.params.id);
+  if (!Number.isInteger(releaseId) || releaseId <= 0) {
+    res.status(400).json({ error: 'A valid Discogs release ID is required.' });
+    return;
+  }
+  if (isStageEnvironment) {
+    res.json({ lastSoldAt: null, low: null, median: null, high: null, currency: null });
+    return;
+  }
+  try {
+    const stats = await fetchDiscogsMarketStats(releaseId);
+    res.json({ ...stats, lastSoldAt: stats.lastSoldAt?.toISOString() ?? null });
+  } catch (error) {
+    console.error('Discogs market-statistics lookup failed:', error);
+    res.status(502).json({ error: 'Discogs could not provide market statistics right now.' });
+  }
+});
+
 app.get('/api/discogs/releases/:id/context', async (req, res) => {
   const releaseId = Number(req.params.id);
   const cdEntryId = Number(req.query.cdEntryId);
@@ -1071,7 +1206,7 @@ app.post('/api/cds', async (req, res) => {
     && Number.isFinite(estimatedValueOverride)
     && estimatedValueOverride >= 0;
   const normalizedMediaCondition = mediaCondition?.trim() || 'Very Good Plus (VG+)';
-  let estimatedValue: number | null = hasManualEstimatedValue ? estimatedValueOverride : null;
+  let estimatedValue: number | null = hasManualEstimatedValue ? estimatedValueOverride : 15;
   let valueLastCheckedAt: Date | null = null;
   let releaseLabel = label?.trim() || null;
   let releaseCatalogNumber = catalogNumber?.trim() || null;
@@ -1088,17 +1223,6 @@ app.post('/api/cds', async (req, res) => {
     }
   }
 
-  if (!hasManualEstimatedValue && discogsId && mediaCondition && discogsToken) {
-    try {
-      const suggestion = await getDiscogsPriceSuggestion(discogsId, mediaCondition, discogsToken);
-      if (suggestion) {
-        estimatedValue = suggestion.value;
-        valueLastCheckedAt = new Date();
-      }
-    } catch (error) {
-      console.error('Discogs price suggestion lookup failed:', error);
-    }
-  }
 
   const created = await prisma.cdEntry.create({
     data: {
@@ -1115,6 +1239,8 @@ app.post('/api/cds', async (req, res) => {
       barcode: releaseBarcode,
       mediaCondition: normalizedMediaCondition,
       estimatedValue,
+      estimatedValueIsManual: hasManualEstimatedValue,
+      estimatedValueReviewedAt: hasManualEstimatedValue ? new Date() : null,
       valueLastCheckedAt,
       notes: notes ?? null,
     },
@@ -1131,8 +1257,11 @@ app.post('/api/cds', async (req, res) => {
     } catch (error) {
       console.error('Catalog Discogs context save failed:', error);
     }
-    void catalogEnrichment.refreshMarketStats(created.id, discogsId)
-      .catch((error) => console.error('Catalog market-statistics refresh failed:', error));
+    try {
+      await catalogEnrichment.refreshMarketStats(created.id, discogsId);
+    } catch (error) {
+      console.error('Catalog market-statistics refresh failed:', error);
+    }
   }
   const storedEntry = await prisma.cdEntry.findUnique({ where: { id: created.id } });
   res.status(201).json({ ...(storedEntry ?? created), coverImageData: undefined, coverImageMimeType: undefined, hasCover });
@@ -1174,7 +1303,7 @@ app.patch('/api/cds/:id', async (req, res) => {
   const hasManualEstimatedValue = typeof estimatedValueOverride === 'number'
     && Number.isFinite(estimatedValueOverride) && estimatedValueOverride >= 0;
   const normalizedMediaCondition = mediaCondition?.trim() || 'Very Good Plus (VG+)';
-  let estimatedValue: number | null = hasManualEstimatedValue ? estimatedValueOverride : null;
+  let estimatedValue: number | null = hasManualEstimatedValue ? estimatedValueOverride : 15;
   let valueLastCheckedAt: Date | null = null;
   let releaseLabel = label?.trim() || null;
   let releaseCatalogNumber = catalogNumber?.trim() || null;
@@ -1189,17 +1318,6 @@ app.patch('/api/cds/:id', async (req, res) => {
       console.error('Discogs corrected release-label lookup failed:', error);
     }
   }
-  if (!hasManualEstimatedValue && mediaCondition && discogsToken) {
-    try {
-      const suggestion = await getDiscogsPriceSuggestion(discogsId, mediaCondition, discogsToken);
-      if (suggestion) {
-        estimatedValue = suggestion.value;
-        valueLastCheckedAt = new Date();
-      }
-    } catch (error) {
-      console.error('Discogs price suggestion lookup failed during match correction:', error);
-    }
-  }
 
   const updated = await prisma.cdEntry.update({
     where: { id: entryId },
@@ -1207,6 +1325,8 @@ app.patch('/api/cds/:id', async (req, res) => {
       title, artist: normalizedArtist, artistSortName: catalogArtistSortName(normalizedArtist), year: year ?? null, country: country ?? null, label: releaseLabel, format: format ?? null,
       discogsId, discogsUri: discogsUri ?? null, catalogNumber: releaseCatalogNumber, barcode: releaseBarcode, mediaCondition: normalizedMediaCondition,
       estimatedValue, valueLastCheckedAt, notes: notes ?? null,
+      estimatedValueIsManual: hasManualEstimatedValue,
+      estimatedValueReviewedAt: hasManualEstimatedValue ? new Date() : null,
       ...(existing.discogsId !== discogsId ? {
         discogsCollectionSyncStatus: 'NOT_SYNCED',
         discogsCollectionInstanceId: null,
@@ -1240,8 +1360,11 @@ app.patch('/api/cds/:id', async (req, res) => {
   } catch (error) {
     console.error('Corrected catalog Discogs context save failed:', error);
   }
-  void catalogEnrichment.refreshMarketStats(updated.id, discogsId)
-    .catch((error) => console.error('Corrected catalog market-statistics refresh failed:', error));
+  try {
+    await catalogEnrichment.refreshMarketStats(updated.id, discogsId);
+  } catch (error) {
+    console.error('Corrected catalog market-statistics refresh failed:', error);
+  }
   const storedEntry = await prisma.cdEntry.findUnique({ where: { id: updated.id } });
   res.json({ ...(storedEntry ?? updated), coverImageData: undefined, coverImageMimeType: undefined, hasCover });
 });

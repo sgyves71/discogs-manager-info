@@ -16,6 +16,53 @@ test.describe('Stage Catalog User Interface', () => {
     await expect(page.getByText('Showing 1 of 1')).toBeVisible();
   });
 
+  test('Requests Discogs Median Sorting for the Catalog', async ({ page }) => {
+    const sorts: string[] = [];
+    await page.route(/\/api\/cds\?.*/, async (route) => {
+      sorts.push(new URL(route.request().url()).searchParams.get('sort') || '');
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: [], total: 0, page: 1, pageSize: 50 }) });
+    });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Catalog', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Sort Catalog' }).selectOption('discogs-median-desc');
+    await expect.poll(() => sorts.includes('discogs-median-desc')).toBe(true);
+    await expect(page.getByText('Discogs Median', { exact: true })).toBeVisible();
+  });
+
+  test('Keeps Discogs Median Sorting in Cover Grid View', async ({ page }) => {
+    const albums = [
+      { id: 1, artist: 'Lower Value Artist', title: 'Lower Value Album', year: 2000, format: 'CD', estimatedValue: 15, discogsMarketMedian: 10, hasCover: false },
+      { id: 2, artist: 'Higher Value Artist', title: 'Higher Value Album', year: 2001, format: 'CD', estimatedValue: 15, discogsMarketMedian: 50, hasCover: false },
+    ];
+    await page.route(/\/api\/cds\?.*/, async (route) => {
+      const sort = new URL(route.request().url()).searchParams.get('sort');
+      const items = sort === 'discogs-median-desc' ? [...albums].reverse() : albums;
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items, total: items.length, page: 1, pageSize: 50 }) });
+    });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Catalog', exact: true }).click();
+    await page.getByRole('button', { name: 'Cover Grid', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Sort Catalog' }).selectOption('discogs-median-desc');
+    await expect(page.locator('.catalog-cover-grid-caption strong')).toHaveText(['Higher Value Artist', 'Lower Value Artist']);
+  });
+
+  test('Displays Catalog Value Statistics', async ({ page }) => {
+    await page.route('/api/catalog/statistics', (route) => route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        totalEntries: 100,
+        discogsMedian: { count: 72, total: 1834.5 },
+        estimatedValue: { count: 100, total: 2100 },
+      }),
+    }));
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Catalog Statistics', exact: true }).click();
+    await expect(page.getByText('Catalog Entries', { exact: true })).toBeVisible();
+    await expect(page.getByText('$1,834.50', { exact: true })).toBeVisible();
+    await expect(page.getByText('72 releases with a known Discogs median', { exact: true })).toBeVisible();
+    await expect(page.getByText('$2,100.00', { exact: true })).toBeVisible();
+  });
+
   test('Warns Before Starting a Valuation Update', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Music Library', exact: true }).click();
@@ -24,6 +71,23 @@ test.describe('Stage Catalog User Interface', () => {
       void dialog.dismiss();
     });
     await page.getByRole('button', { name: 'Update Valuations', exact: true }).click();
+  });
+
+  test('Synchronizes the Stage Catalog to the Stage Discogs Collection', async ({ request }) => {
+    const preview = await request.get(`${process.env.E2E_API_URL || 'http://localhost:3100'}/api/discogs/collection-sync`);
+    await expect(preview).toBeOK();
+    expect(await preview.json()).toMatchObject({ configured: true, eligible: 1, pending: 1 });
+
+    const start = await request.post(`${process.env.E2E_API_URL || 'http://localhost:3100'}/api/discogs/collection-sync`);
+    expect(start.status()).toBe(202);
+
+    await expect.poll(async () => {
+      const response = await request.get(`${process.env.E2E_API_URL || 'http://localhost:3100'}/api/discogs/collection-sync`);
+      return (await response.json() as { sync: { status: string } }).sync.status;
+    }).toBe('complete');
+
+    const completed = await request.get(`${process.env.E2E_API_URL || 'http://localhost:3100'}/api/discogs/collection-sync`);
+    expect(await completed.json()).toMatchObject({ sync: { status: 'complete', added: 1, username: 'stage-discogs-user' } });
   });
 
   test('Versions a Catalog Cover URL After a Cover Update', async ({ page }) => {
