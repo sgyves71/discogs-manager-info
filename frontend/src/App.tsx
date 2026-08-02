@@ -100,6 +100,7 @@ type DiscogsReleaseTrack = {
   position: string | null;
   title: string;
   duration: string | null;
+  isComposite?: boolean;
 };
 
 type MarketStatsBackfill = {
@@ -1400,20 +1401,22 @@ function App() {
 
   async function syncPersonalTrackLocations() {
     if (!viewedEntry || !detailTracks.length || personalLocationSyncing) return;
+    const playableTracks = detailTracks.filter((track) => !track.isComposite);
+    if (!playableTracks.length) return;
     setPersonalLocationSyncing(true);
-    setPersonalMusicStatus(`Syncing personal locations for ${detailTracks.length} tracks...`);
+    setPersonalMusicStatus(`Syncing personal locations for ${playableTracks.length} tracks...`);
     try {
       const response = await fetch(`/api/cds/${viewedEntry.id}/personal-track-matches/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tracks: detailTracks.map((track) => ({ trackKey: trackKey(track), title: track.title })) }),
+        body: JSON.stringify({ tracks: playableTracks.map((track) => ({ trackKey: trackKey(track), title: track.title })) }),
       });
       const responseText = await response.text();
       let data: { matches?: PersonalTrackMatch[]; matchedCount?: number; unmatchedCount?: number; error?: string } = {};
       try { data = responseText ? JSON.parse(responseText) as typeof data : {}; } catch { /* malformed responses are handled below */ }
       if (!response.ok) throw new Error(data.error || 'Unable to sync personal music locations.');
       setPersonalTrackMatches(data.matches ?? []);
-      setPersonalMusicStatus(`${data.matchedCount ?? 0} of ${detailTracks.length} personal track locations synced${data.unmatchedCount ? `; ${data.unmatchedCount} not found.` : '.'}`);
+      setPersonalMusicStatus(`${data.matchedCount ?? 0} of ${playableTracks.length} personal track locations synced${data.unmatchedCount ? `; ${data.unmatchedCount} not found.` : '.'}`);
     } catch (error) {
       setPersonalMusicStatus(error instanceof Error ? error.message : 'Unable to sync personal music locations.');
     } finally {
@@ -2218,12 +2221,12 @@ function App() {
                           <span className="track-position">{track.position || index + 1}</span>
                           <span className="track-title">{track.title}</span>
                           {track.duration ? <span className="track-duration">{track.duration}</span> : null}
-                          <div className="track-actions">
+                          {track.isComposite ? <span className="track-suite-note">Suite — individual movements are listed below</span> : <div className="track-actions">
                             <button type="button" onClick={() => personalMatch ? playLocalCopy(personalMatch) : void findPersonalCopy(track)}>{personalMatch ? 'Play Local Copy' : 'Find Personal Copy'}</button>
                             {savedMatch ? <button type="button" onClick={() => { setLocalAudioPlayer(null); setYouTubePlayer({ videoId: savedMatch.videoId, title: savedMatch.videoTitle, watchUrl: savedMatch.videoUrl }); }}>Play Saved Match</button> : null}
                             <button type="button" className="secondary-button" onClick={() => void findYouTubeMatches(track)}>{savedMatch ? 'Change Match' : 'Find Matches'}</button>
                             <button type="button" className="secondary-button" onClick={() => openTrackOnYouTube(track)}>Search</button>
-                          </div>
+                          </div>}
                         </li>
                       );
                     })}

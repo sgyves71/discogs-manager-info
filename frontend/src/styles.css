@@ -856,6 +856,12 @@ button:disabled {
   width: 100%;
 }
 
+.track-suite-note {
+  color: #aebbc5;
+  font-size: 0.88rem;
+  font-style: italic;
+}
+
 .local-audio-player-navigation {
   grid-column: 1 / -1;
   display: flex;

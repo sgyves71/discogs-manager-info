@@ -150,6 +150,7 @@ export type DiscogsReleaseTrack = {
   position: string | null;
   title: string;
   duration: string | null;
+  isComposite?: boolean;
 };
 
 export type DiscogsReleaseCatalogInfo = {
@@ -333,16 +334,20 @@ export async function getDiscogsReleaseTracklist(
     },
   ));
 
-  const flattenTracks = (tracks: DiscogsTrack[]): DiscogsTrack[] => tracks.flatMap((track) => [
-    track,
-    ...(Array.isArray(track.sub_tracks) ? flattenTracks(track.sub_tracks) : []),
-  ]);
+  const flattenTracks = (tracks: DiscogsTrack[]): Array<DiscogsTrack & { isComposite: boolean }> => tracks.flatMap((track) => {
+    const subTracks = Array.isArray(track.sub_tracks) ? track.sub_tracks : [];
+    return [
+      { ...track, isComposite: subTracks.length > 0 },
+      ...flattenTracks(subTracks),
+    ];
+  });
   return flattenTracks(response.data?.tracklist ?? [])
     .filter((track) => track.type_ !== 'heading' && Boolean(track.title?.trim()))
     .map((track) => ({
       position: track.position?.trim() || null,
       title: track.title!.trim(),
       duration: track.duration?.trim() || null,
+      isComposite: track.isComposite || undefined,
     }));
 }
 

@@ -454,7 +454,7 @@ app.post('/api/cds/:id/personal-album-folder/validate', async (req, res) => {
   }
   const indexedTracks = await prisma.musicLibraryTrack.findMany({ where: { libraryId: library.id, filePath: { startsWith: `${resolvedFolderPath}${path.sep}` } }, select: { id: true, title: true } });
   try {
-    const releaseTracks = await getDiscogsReleaseTracklist(entry.discogsId, discogsToken);
+    const releaseTracks = (await getDiscogsReleaseTracklist(entry.discogsId, discogsToken)).filter((track) => !track.isComposite);
     const remaining = [...indexedTracks];
     const matched = releaseTracks.every((releaseTrack) => {
       const bestIndex = remaining.reduce((best, candidate, index) => scoreMusicTitleMatch(releaseTrack.title, candidate.title) >= 0.75 && (best < 0 || scoreMusicTitleMatch(releaseTrack.title, candidate.title) > scoreMusicTitleMatch(releaseTrack.title, remaining[best].title)) ? index : best, -1);

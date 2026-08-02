@@ -51,6 +51,10 @@ function canonicalizeAlbumQualifiers(value: string): string {
   });
 }
 
+function stripTrackSequencePrefix(value: string): string {
+  return value.replace(/^\s*(?:\d+|[ivxlcdm]+)[.)]\s*/iu, '');
+}
+
 export function normalizeMusicText(value: string): string {
   return value
     .normalize('NFKD')
@@ -101,13 +105,15 @@ export function scoreMusicTextMatch(requestedTitle: string, candidateTitle: stri
 }
 
 export function scoreMusicTitleMatch(requestedTitle: string, candidateTitle: string): number {
-  const requestedQualifiers = albumQualifiers(requestedTitle);
-  const candidateQualifiers = albumQualifiers(candidateTitle);
+  const cleanedRequestedTitle = stripTrackSequencePrefix(requestedTitle);
+  const cleanedCandidateTitle = stripTrackSequencePrefix(candidateTitle);
+  const requestedQualifiers = albumQualifiers(cleanedRequestedTitle);
+  const candidateQualifiers = albumQualifiers(cleanedCandidateTitle);
   // A requested part/volume/disc must not silently fall back to an unqualified
   // base album or a different installment. A generic request may still match a
   // more specific candidate, preserving the existing disc-number behavior.
   if (requestedQualifiers.length && !sameAlbumQualifiers(requestedQualifiers, candidateQualifiers)) return 0;
-  return scoreMusicTextMatch(canonicalizeAlbumQualifiers(requestedTitle), canonicalizeAlbumQualifiers(candidateTitle));
+  return scoreMusicTextMatch(canonicalizeAlbumQualifiers(cleanedRequestedTitle), canonicalizeAlbumQualifiers(cleanedCandidateTitle));
 }
 
 export function shortenedArtistSearch(value: string): string | null {
