@@ -482,15 +482,23 @@ app.get('/api/music-library/playback/next', async (req, res) => {
     title: match.libraryTrack.title,
     subtitle: `${match.libraryTrack.artist} — ${match.libraryTrack.album}`,
   });
-  const currentAlbumMatches = await prisma.personalTrackMatch.findMany({
-    where: { cdEntryId },
-    include: { libraryTrack: true },
-    orderBy: [{ libraryTrack: { discNumber: 'asc' } }, { libraryTrack: { trackNumber: 'asc' } }, { libraryTrack: { title: 'asc' } }],
+  const currentTrack = await prisma.musicLibraryTrack.findUnique({ where: { id: trackId } });
+  if (!currentTrack) {
+    res.status(404).json({ error: 'The current local track was not found.' });
+    return;
+  }
+  const currentAlbumTracks = await prisma.musicLibraryTrack.findMany({
+    where: {
+      libraryId: currentTrack.libraryId,
+      normalizedArtist: currentTrack.normalizedArtist,
+      normalizedAlbum: currentTrack.normalizedAlbum,
+    },
+    orderBy: [{ discNumber: 'asc' }, { trackNumber: 'asc' }, { title: 'asc' }],
   });
-  const currentIndex = currentAlbumMatches.findIndex((match) => match.libraryTrackId === trackId);
-  const nextOnCurrentAlbum = currentIndex >= 0 ? currentAlbumMatches[currentIndex + 1] : null;
+  const currentIndex = currentAlbumTracks.findIndex((track) => track.id === trackId);
+  const nextOnCurrentAlbum = currentIndex >= 0 ? currentAlbumTracks[currentIndex + 1] : null;
   if (nextOnCurrentAlbum) {
-    res.json({ next: toPlaybackTrack(nextOnCurrentAlbum, cdEntryId) });
+    res.json({ next: toPlaybackTrack({ libraryTrack: nextOnCurrentAlbum }, cdEntryId) });
     return;
   }
 
@@ -507,8 +515,18 @@ app.get('/api/music-library/playback/next', async (req, res) => {
       orderBy: [{ libraryTrack: { discNumber: 'asc' } }, { libraryTrack: { trackNumber: 'asc' } }, { libraryTrack: { title: 'asc' } }],
     });
     if (firstMatch) {
-      res.json({ next: toPlaybackTrack(firstMatch, entry.id) });
-      return;
+      const firstTrackOnAlbum = await prisma.musicLibraryTrack.findFirst({
+        where: {
+          libraryId: firstMatch.libraryTrack.libraryId,
+          normalizedArtist: firstMatch.libraryTrack.normalizedArtist,
+          normalizedAlbum: firstMatch.libraryTrack.normalizedAlbum,
+        },
+        orderBy: [{ discNumber: 'asc' }, { trackNumber: 'asc' }, { title: 'asc' }],
+      });
+      if (firstTrackOnAlbum) {
+        res.json({ next: toPlaybackTrack({ libraryTrack: firstTrackOnAlbum }, entry.id) });
+        return;
+      }
     }
   }
   res.json({ next: null });
@@ -528,15 +546,23 @@ app.get('/api/music-library/playback/previous', async (req, res) => {
     title: match.libraryTrack.title,
     subtitle: `${match.libraryTrack.artist} — ${match.libraryTrack.album}`,
   });
-  const currentAlbumMatches = await prisma.personalTrackMatch.findMany({
-    where: { cdEntryId },
-    include: { libraryTrack: true },
-    orderBy: [{ libraryTrack: { discNumber: 'asc' } }, { libraryTrack: { trackNumber: 'asc' } }, { libraryTrack: { title: 'asc' } }],
+  const currentTrack = await prisma.musicLibraryTrack.findUnique({ where: { id: trackId } });
+  if (!currentTrack) {
+    res.status(404).json({ error: 'The current local track was not found.' });
+    return;
+  }
+  const currentAlbumTracks = await prisma.musicLibraryTrack.findMany({
+    where: {
+      libraryId: currentTrack.libraryId,
+      normalizedArtist: currentTrack.normalizedArtist,
+      normalizedAlbum: currentTrack.normalizedAlbum,
+    },
+    orderBy: [{ discNumber: 'asc' }, { trackNumber: 'asc' }, { title: 'asc' }],
   });
-  const currentIndex = currentAlbumMatches.findIndex((match) => match.libraryTrackId === trackId);
-  const previousOnCurrentAlbum = currentIndex > 0 ? currentAlbumMatches[currentIndex - 1] : null;
+  const currentIndex = currentAlbumTracks.findIndex((track) => track.id === trackId);
+  const previousOnCurrentAlbum = currentIndex > 0 ? currentAlbumTracks[currentIndex - 1] : null;
   if (previousOnCurrentAlbum) {
-    res.json({ previous: toPlaybackTrack(previousOnCurrentAlbum, cdEntryId) });
+    res.json({ previous: toPlaybackTrack({ libraryTrack: previousOnCurrentAlbum }, cdEntryId) });
     return;
   }
 
@@ -553,8 +579,18 @@ app.get('/api/music-library/playback/previous', async (req, res) => {
       orderBy: [{ libraryTrack: { discNumber: 'desc' } }, { libraryTrack: { trackNumber: 'desc' } }, { libraryTrack: { title: 'desc' } }],
     });
     if (lastMatch) {
-      res.json({ previous: toPlaybackTrack(lastMatch, entry.id) });
-      return;
+      const lastTrackOnAlbum = await prisma.musicLibraryTrack.findFirst({
+        where: {
+          libraryId: lastMatch.libraryTrack.libraryId,
+          normalizedArtist: lastMatch.libraryTrack.normalizedArtist,
+          normalizedAlbum: lastMatch.libraryTrack.normalizedAlbum,
+        },
+        orderBy: [{ discNumber: 'desc' }, { trackNumber: 'desc' }, { title: 'desc' }],
+      });
+      if (lastTrackOnAlbum) {
+        res.json({ previous: toPlaybackTrack({ libraryTrack: lastTrackOnAlbum }, entry.id) });
+        return;
+      }
     }
   }
   res.json({ previous: null });
