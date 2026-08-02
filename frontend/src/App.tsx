@@ -195,6 +195,7 @@ type MusicLibraryInfo = {
   lastScannedAt: string | null;
   trackCount: number;
   scan: { status: 'idle' | 'scanning' | 'complete' | 'failed'; scannedFiles: number; indexedFiles: number; skippedFiles: number; error: string | null };
+  catalogLocationScan: { status: 'idle' | 'scanning' | 'complete' | 'failed'; total: number; processed: number; matched: number; alreadyMapped: number; unmatched: number; error: string | null };
 };
 
 type PersonalTrackMatch = {
@@ -1367,6 +1368,18 @@ function App() {
     }
   }
 
+  async function scanCatalogPersonalLocations() {
+    setMusicLibraryStatus('Starting catalog local-copy matching...');
+    try {
+      const response = await fetch('/api/music-library/catalog-personal-locations/scan', { method: 'POST' });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(data.error || 'Unable to start catalog local-copy matching.');
+      setMusicLibraryStatus('Matching catalog albums against your indexed local music. You can leave this page while it runs.');
+    } catch (error) {
+      setMusicLibraryStatus(error instanceof Error ? error.message : 'Unable to start catalog local-copy matching.');
+    }
+  }
+
   async function playPreviousLocalCopy() {
     const currentPlayer = localAudioPlayer;
     if (!currentPlayer) return;
@@ -1690,6 +1703,16 @@ function App() {
             {musicLibrary?.scan.status === 'scanning' ? <p className="hint">Scanning: {musicLibrary.scan.scannedFiles.toLocaleString()} files checked · {musicLibrary.scan.indexedFiles.toLocaleString()} indexed · {musicLibrary.scan.skippedFiles.toLocaleString()} skipped</p> : null}
             {musicLibrary?.scan.status === 'failed' ? <p className="hint">Scan failed: {musicLibrary.scan.error}</p> : null}
             {musicLibraryStatus ? <p className="hint">{musicLibraryStatus}</p> : null}
+          </div>
+          <div className="card music-library-card">
+            <h2>Catalog Local Copies</h2>
+            <p>Compare every catalog artist and album against your indexed, tagged music and save high-confidence album-folder matches. This uses only your local database and files already indexed by Scan Library.</p>
+            <div className="form-actions">
+              <button type="button" onClick={() => void scanCatalogPersonalLocations()} disabled={!musicLibrary?.rootPath || musicLibrary.trackCount === 0 || musicLibrary.catalogLocationScan.status === 'scanning' || musicLibrary.scan.status === 'scanning'}>{musicLibrary?.catalogLocationScan.status === 'scanning' ? 'Matching Catalog...' : 'Scan Catalog for Local Copies'}</button>
+            </div>
+            {musicLibrary?.catalogLocationScan.status === 'scanning' ? <p className="hint">Progress: {musicLibrary.catalogLocationScan.processed.toLocaleString()} / {musicLibrary.catalogLocationScan.total.toLocaleString()} catalog albums checked · {musicLibrary.catalogLocationScan.matched.toLocaleString()} new matches · {musicLibrary.catalogLocationScan.alreadyMapped.toLocaleString()} already linked</p> : null}
+            {musicLibrary?.catalogLocationScan.status === 'complete' ? <p className="hint">Complete: {musicLibrary.catalogLocationScan.processed.toLocaleString()} catalog albums checked · {musicLibrary.catalogLocationScan.matched.toLocaleString()} new matches · {musicLibrary.catalogLocationScan.alreadyMapped.toLocaleString()} existing links retained · {musicLibrary.catalogLocationScan.unmatched.toLocaleString()} not found.</p> : null}
+            {musicLibrary?.catalogLocationScan.status === 'failed' ? <p className="hint">Catalog local-copy matching failed: {musicLibrary.catalogLocationScan.error || 'Unknown error.'}</p> : null}
           </div>
           <div className="card music-library-card">
             <h2>Catalog valuations</h2>

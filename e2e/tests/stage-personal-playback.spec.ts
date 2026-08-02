@@ -18,6 +18,18 @@ test.describe('Stage Personal Playback', () => {
     const stageAlbum = catalog.items.find((entry) => entry.title === 'Stage Album');
     expect(stageAlbum).toBeDefined();
 
+    const catalogScan = await request.post(`${apiUrl}/api/music-library/catalog-personal-locations/scan`);
+    expect(catalogScan.status()).toBe(202);
+    let catalogLocationScan: { status: string; matched: number; unmatched: number } | null = null;
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const libraryResponse = await request.get(`${apiUrl}/api/music-library`);
+      await expect(libraryResponse).toBeOK();
+      catalogLocationScan = (await libraryResponse.json() as { catalogLocationScan: { status: string; matched: number; unmatched: number } }).catalogLocationScan;
+      if (catalogLocationScan.status !== 'scanning') break;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    expect(catalogLocationScan).toMatchObject({ status: 'complete', matched: 2, unmatched: 0 });
+
     const syncResponse = await request.post(`${apiUrl}/api/cds/${stageAlbum!.id}/personal-track-matches/sync`, {
       data: { tracks: [{ trackKey: '1|Stage Song One', title: 'Stage Song One' }] },
     });

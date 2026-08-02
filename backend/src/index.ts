@@ -49,6 +49,9 @@ const pendingCoverLookups = new Map<number, Promise<string | null>>();
 const libraryScanState: { status: 'idle' | 'scanning' | 'complete' | 'failed'; scannedFiles: number; indexedFiles: number; skippedFiles: number; error: string | null } = {
   status: 'idle', scannedFiles: 0, indexedFiles: 0, skippedFiles: 0, error: null,
 };
+const catalogPersonalLocationScanState: { status: 'idle' | 'scanning' | 'complete' | 'failed'; total: number; processed: number; matched: number; alreadyMapped: number; unmatched: number; error: string | null } = {
+  status: 'idle', total: 0, processed: 0, matched: 0, alreadyMapped: 0, unmatched: 0, error: null,
+};
 const playbackDiagnostics: { at: string; trackId: number; method: string; range: string | null; status: number; contentRange: string | null; userAgent: string | null }[] = [];
 
 function recordPlaybackDiagnostic(req: express.Request, res: express.Response, trackId: number) {
@@ -123,6 +126,58 @@ async function findPlaybackAlbumAnchor(entry: { artist: string; title: string; p
     .sort((left, right) => right.albumScore - left.albumScore || (left.candidate.trackNumber ?? 0) - (right.candidate.trackNumber ?? 0))[0]?.candidate ?? null;
 }
 
+async function scanCatalogPersonalLocations(libraryId: number) {
+  catalogPersonalLocationScanState.status = 'scanning';
+  catalogPersonalLocationScanState.processed = 0;
+  catalogPersonalLocationScanState.matched = 0;
+  catalogPersonalLocationScanState.alreadyMapped = 0;
+  catalogPersonalLocationScanState.unmatched = 0;
+  catalogPersonalLocationScanState.error = null;
+  try {
+    const [entries, libraryTracks] = await Promise.all([
+      prisma.cdEntry.findMany({ select: { id: true, artist: true, title: true, personalAlbumFolderPath: true }, orderBy: { id: 'asc' } }),
+      prisma.musicLibraryTrack.findMany({ where: { libraryId }, select: { filePath: true, artist: true, album: true, normalizedArtist: true, trackNumber: true } }),
+    ]);
+    catalogPersonalLocationScanState.total = entries.length;
+    const tracksByArtist = new Map<string, typeof libraryTracks>();
+    for (const track of libraryTracks) {
+      const matches = tracksByArtist.get(track.normalizedArtist) ?? [];
+      matches.push(track);
+      tracksByArtist.set(track.normalizedArtist, matches);
+    }
+    for (const entry of entries) {
+      const existingFolder = entry.personalAlbumFolderPath ? path.resolve(entry.personalAlbumFolderPath) : null;
+      const hasExistingFolder = existingFolder && libraryTracks.some((track) => path.resolve(track.filePath).startsWith(`${existingFolder}${path.sep}`));
+      if (hasExistingFolder) {
+        catalogPersonalLocationScanState.alreadyMapped += 1;
+      } else {
+        const normalizedArtist = normalizeMusicText(entry.artist);
+        const artistCandidates = tracksByArtist.get(normalizedArtist)
+          ?? libraryTracks.filter((track) => scoreMusicTextMatch(entry.artist, track.artist) >= 0.7);
+        const albumMatch = artistCandidates
+          .map((track) => ({ track, albumScore: scoreMusicTitleMatch(entry.title, track.album) }))
+          .filter(({ albumScore }) => albumScore >= 0.55)
+          .sort((left, right) => right.albumScore - left.albumScore || (left.track.trackNumber ?? 0) - (right.track.trackNumber ?? 0))[0]?.track;
+        if (albumMatch) {
+          await prisma.cdEntry.update({
+            where: { id: entry.id },
+            data: { personalAlbumFolderPath: path.dirname(albumMatch.filePath), personalAlbumFolderMappedAt: new Date() },
+          });
+          catalogPersonalLocationScanState.matched += 1;
+        } else {
+          catalogPersonalLocationScanState.unmatched += 1;
+        }
+      }
+      catalogPersonalLocationScanState.processed += 1;
+      if (catalogPersonalLocationScanState.processed % 25 === 0) await new Promise<void>((resolve) => setImmediate(resolve));
+    }
+    catalogPersonalLocationScanState.status = 'complete';
+  } catch (error) {
+    catalogPersonalLocationScanState.status = 'failed';
+    catalogPersonalLocationScanState.error = error instanceof Error ? error.message : 'Unable to match the catalog to the music library.';
+  }
+}
+
 async function scanMusicLibrary(libraryId: number, rootPath: string) {
   const scanStartedAt = new Date();
   libraryScanState.status = 'scanning';
@@ -185,6 +240,7 @@ app.get('/api/music-library', async (_req, res) => {
     lastScannedAt: library?.lastScannedAt ?? null,
     trackCount,
     scan: libraryScanState,
+    catalogLocationScan: catalogPersonalLocationScanState,
   });
 });
 
@@ -211,6 +267,7 @@ app.put('/api/music-library', async (req, res) => {
   libraryScanState.indexedFiles = 0;
   libraryScanState.skippedFiles = 0;
   libraryScanState.error = null;
+  catalogPersonalLocationScanState.status = 'idle';
   res.json({ rootPath: library.rootPath, lastScannedAt: library.lastScannedAt });
 });
 
@@ -419,6 +476,28 @@ app.get('/api/cds/:id/personal-track-matches', async (req, res) => {
     return;
   }
   res.json({ matches: await prisma.personalTrackMatch.findMany({ where: { cdEntryId }, include: { libraryTrack: true } }) });
+});
+
+app.post('/api/music-library/catalog-personal-locations/scan', async (_req, res) => {
+  const library = await getMusicLibrary();
+  if (!library) {
+    res.status(400).json({ error: 'Choose and scan a music library folder first.' });
+    return;
+  }
+  if (libraryScanState.status === 'scanning') {
+    res.status(409).json({ error: 'Wait for the music-library scan to finish before matching catalog albums.' });
+    return;
+  }
+  if (catalogPersonalLocationScanState.status === 'scanning') {
+    res.status(409).json({ error: 'A catalog local-copy scan is already running.' });
+    return;
+  }
+  if (!await prisma.musicLibraryTrack.count({ where: { libraryId: library.id } })) {
+    res.status(400).json({ error: 'Scan the music library before matching catalog albums.' });
+    return;
+  }
+  void scanCatalogPersonalLocations(library.id);
+  res.status(202).json({ scan: catalogPersonalLocationScanState });
 });
 
 app.post('/api/cds/:id/personal-track-matches/sync', async (req, res) => {
