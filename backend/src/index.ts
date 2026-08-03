@@ -788,15 +788,27 @@ app.get('/api/cds', async (req, res) => {
 });
 
 app.get('/api/catalog/statistics', async (_req, res) => {
-  const [totalEntries, medianValues, estimatedValues] = await Promise.all([
+  const [totalEntries, medianValues, estimatedValues, catalogGenres] = await Promise.all([
     prisma.cdEntry.count(),
     prisma.cdEntry.aggregate({ where: { discogsMarketMedian: { not: null } }, _count: { discogsMarketMedian: true }, _sum: { discogsMarketMedian: true } }),
     prisma.cdEntry.aggregate({ where: { estimatedValue: { not: null } }, _count: { estimatedValue: true }, _sum: { estimatedValue: true } }),
+    prisma.cdEntry.findMany({ select: { genre: true } }),
   ]);
+  const genreWeights = new Map<string, number>();
+  for (const entry of catalogGenres) {
+    const genres = entry.genre?.split(',').map((genre) => genre.trim()).filter(Boolean) ?? [];
+    const categories = genres.length ? genres : ['Uncategorized'];
+    const weight = 1 / categories.length;
+    for (const genre of categories) genreWeights.set(genre, (genreWeights.get(genre) ?? 0) + weight);
+  }
+  const genres = [...genreWeights.entries()]
+    .map(([genre, count]) => ({ genre, count, percentage: totalEntries ? (count / totalEntries) * 100 : 0 }))
+    .sort((left, right) => right.count - left.count || left.genre.localeCompare(right.genre));
   res.json({
     totalEntries,
     discogsMedian: { count: medianValues._count.discogsMarketMedian, total: medianValues._sum.discogsMarketMedian ?? 0 },
     estimatedValue: { count: estimatedValues._count.estimatedValue, total: estimatedValues._sum.estimatedValue ?? 0 },
+    genres,
   });
 });
 

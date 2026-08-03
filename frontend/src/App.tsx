@@ -136,6 +136,7 @@ type CatalogStatistics = {
   totalEntries: number;
   discogsMedian: { count: number; total: number };
   estimatedValue: { count: number; total: number };
+  genres: Array<{ genre: string; count: number; percentage: number }>;
 };
 
 type SpeechRecognitionAlternativeLike = { transcript: string };
@@ -211,6 +212,7 @@ type PersonalBrowsableAlbumFolder = { folderPath: string; name: string; album: s
 
 const RESULTS_PER_PAGE = 20;
 const COLLECTION_BATCH_SIZE = 50;
+const GENRE_CHART_COLORS = ['#56a6d2', '#b875dd', '#e89550', '#56c49a', '#e6637d', '#d9bf53', '#7c9ee8', '#d775b7', '#78b4a2', '#d47b53'];
 const MEDIA_CONDITIONS = [
   'Mint (M)',
   'Near Mint (NM or M-)',
@@ -262,6 +264,16 @@ function formatDiscogsMarketDate(value: string | null | undefined): string {
   if (!value) return 'Not available';
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? 'Not available' : date.toLocaleDateString();
+}
+
+function genrePieGradient(genres: CatalogStatistics['genres']): string {
+  let position = 0;
+  const segments = genres.map((genre, index) => {
+    const start = position;
+    position += genre.percentage;
+    return `${GENRE_CHART_COLORS[index % GENRE_CHART_COLORS.length]} ${start}% ${position}%`;
+  });
+  return segments.length ? `conic-gradient(${segments.join(', ')})` : 'conic-gradient(#44515c 0% 100%)';
 }
 
 function catalogCoverUrl(entry: Pick<CdEntry, 'id' | 'coverImageUpdatedAt'>): string {
@@ -1687,6 +1699,25 @@ function App() {
               <small>{catalogStatistics ? `${catalogStatistics.estimatedValue.count.toLocaleString()} releases with an estimated value` : 'Loading…'}</small>
             </section>
           </div>
+          <section className="card genre-distribution-card">
+            <div>
+              <h2>Genre Distribution</h2>
+              <p className="hint">Each release contributes equally. Multi-genre releases are divided evenly across their listed genres.</p>
+            </div>
+            {catalogStatistics ? <div className="genre-distribution-content">
+              <div className="genre-pie-chart" role="img" aria-label="Genre distribution pie chart" style={{ background: genrePieGradient(catalogStatistics.genres) }}>
+                <strong>{catalogStatistics.totalEntries.toLocaleString()}</strong>
+                <span>CDs</span>
+              </div>
+              <ul className="genre-legend">
+                {catalogStatistics.genres.map((genre, index) => <li key={genre.genre}>
+                  <span className="genre-legend-swatch" style={{ backgroundColor: GENRE_CHART_COLORS[index % GENRE_CHART_COLORS.length] }} aria-hidden="true" />
+                  <strong>{genre.genre}</strong>
+                  <span>{genre.percentage.toFixed(1)}% · {genre.count % 1 ? genre.count.toFixed(1) : genre.count.toLocaleString()} CDs</span>
+                </li>)}
+              </ul>
+            </div> : <p className="hint">Loading genre distribution…</p>}
+          </section>
           {catalogStatisticsStatus ? <p className="hint">{catalogStatisticsStatus}</p> : null}
         </>
       )}
