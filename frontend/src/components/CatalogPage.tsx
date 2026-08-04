@@ -4,6 +4,8 @@ import type { CdEntry } from '../types';
 type CatalogPageProps = {
   items: CdEntry[];
   search: string;
+  style: string;
+  styleOptions: string[];
   total: number;
   isLoading: boolean;
   hasMoreItems: boolean;
@@ -11,6 +13,7 @@ type CatalogPageProps = {
   sort: 'artist' | 'discogs-median-desc' | 'estimated-value-desc';
   hasOpenDetail: boolean;
   onSearchChange: (value: string) => void;
+  onStyleChange: (value: string) => void;
   onSortChange: (value: 'artist' | 'discogs-median-desc' | 'estimated-value-desc') => void;
   onOpenDetail: (item: CdEntry) => void;
   onChangeAssociation: (item: CdEntry) => void;
@@ -21,8 +24,8 @@ type CatalogPageProps = {
 };
 
 export function CatalogPage({
-  items, search, total, isLoading, hasMoreItems, status, sort, hasOpenDetail,
-  onSearchChange, onSortChange, onOpenDetail, onChangeAssociation, onSearchEbay, onRemove, onLoadMore, children,
+  items, search, style, styleOptions, total, isLoading, hasMoreItems, status, sort, hasOpenDetail,
+  onSearchChange, onStyleChange, onSortChange, onOpenDetail, onChangeAssociation, onSearchEbay, onRemove, onLoadMore, children,
 }: CatalogPageProps) {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
@@ -81,6 +84,10 @@ export function CatalogPage({
               <option value="artist">Artist (A-Z)</option>
               <option value="discogs-median-desc">Discogs Median (High to Low)</option>
               <option value="estimated-value-desc">Estimated Value (High to Low)</option>
+            </select></label>
+            <label className="collection-sort">Style<select value={style} onChange={(event) => onStyleChange(event.target.value)} aria-label="Filter Catalog by Style">
+              <option value="">All Styles</option>
+              {styleOptions.map((option) => <option key={option} value={option}>{option}</option>)}
             </select></label>
             <div className="collection-view-toggle" aria-label="Catalog view">
               <button type="button" className={viewMode === 'list' ? 'is-active' : 'secondary-button'} onClick={() => setViewMode('list')} aria-pressed={viewMode === 'list'}>List View</button>

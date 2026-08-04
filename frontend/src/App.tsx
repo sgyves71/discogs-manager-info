@@ -296,6 +296,8 @@ function App() {
   const [items, setItems] = useState<CdEntry[]>([]);
   const [activePage, setActivePage] = useState<'search' | 'catalog' | 'library' | 'statistics'>('search');
   const [collectionSearch, setCollectionSearch] = useState('');
+  const [collectionStyle, setCollectionStyle] = useState('');
+  const [collectionStyleOptions, setCollectionStyleOptions] = useState<string[]>([]);
   const [collectionSort, setCollectionSort] = useState<'artist' | 'discogs-median-desc' | 'estimated-value-desc'>('artist');
   const [collectionPage, setCollectionPage] = useState(1);
   const [collectionTotal, setCollectionTotal] = useState(0);
@@ -401,6 +403,7 @@ function App() {
     const timeout = window.setTimeout(() => {
       const params = new URLSearchParams({ page: String(collectionPage), pageSize: String(COLLECTION_BATCH_SIZE) });
       if (collectionSearch.trim()) params.set('q', collectionSearch.trim());
+      if (collectionStyle) params.set('style', collectionStyle);
       params.set('sort', collectionSort);
       fetch(`/api/cds?${params.toString()}`)
         .then((res) => res.json())
@@ -427,7 +430,17 @@ function App() {
         });
     }, 250);
     return () => { cancelled = true; window.clearTimeout(timeout); };
-  }, [collectionPage, collectionRefresh, collectionSearch, collectionSort]);
+  }, [collectionPage, collectionRefresh, collectionSearch, collectionSort, collectionStyle]);
+
+  useEffect(() => {
+    if (activePage !== 'catalog') return;
+    let cancelled = false;
+    fetch('/api/catalog/styles')
+      .then((response) => response.ok ? response.json() as Promise<{ styles?: string[] }> : { styles: [] })
+      .then((data) => { if (!cancelled) setCollectionStyleOptions(data.styles ?? []); })
+      .catch(() => { if (!cancelled) setCollectionStyleOptions([]); });
+    return () => { cancelled = true; };
+  }, [activePage]);
 
   useEffect(() => {
     if (activePage !== 'statistics') return;
@@ -1697,8 +1710,10 @@ function App() {
             {catalogStatistics ? <div className="style-distribution-content" role="img" aria-label="Style distribution bar chart">
               <ul className="style-distribution-list">
                 {catalogStatistics.styles.map((style, index) => <li key={style.style}>
+                  <button type="button" className="style-distribution-entry" onClick={() => { collectionLoadInFlightRef.current = false; setCollectionStyle(style.style); setCollectionPage(1); setItems([]); setCollectionTotal(0); setActivePage('catalog'); }} aria-label={`View ${style.style} catalog entries`}>
                   <div className="style-distribution-label"><span className="genre-legend-swatch" style={{ backgroundColor: STYLE_CHART_COLORS[index % STYLE_CHART_COLORS.length] }} aria-hidden="true" /><strong>{style.style}</strong><span>{style.percentage.toFixed(1)}% · {style.count.toLocaleString()} CDs</span></div>
                   <div className="style-distribution-bar-track"><span className="style-distribution-bar" style={{ width: `${style.percentage}%`, backgroundColor: STYLE_CHART_COLORS[index % STYLE_CHART_COLORS.length] }} /></div>
+                  </button>
                 </li>)}
               </ul>
             </div> : <p className="hint">Loading style distribution…</p>}
@@ -2036,6 +2051,8 @@ function App() {
       <CatalogPage
         items={items}
         search={collectionSearch}
+        style={collectionStyle}
+        styleOptions={collectionStyleOptions}
         total={collectionTotal}
         isLoading={collectionLoading}
         hasMoreItems={hasMoreCollectionItems}
@@ -2043,6 +2060,7 @@ function App() {
         sort={collectionSort}
         hasOpenDetail={Boolean(viewedEntry)}
         onSearchChange={(value) => { collectionLoadInFlightRef.current = false; setCollectionSearch(value); setCollectionPage(1); setItems([]); setCollectionTotal(0); }}
+        onStyleChange={(value) => { collectionLoadInFlightRef.current = false; setCollectionStyle(value); setCollectionPage(1); setItems([]); setCollectionTotal(0); }}
         onSortChange={(value) => { collectionLoadInFlightRef.current = false; setCollectionSort(value); setCollectionPage(1); setItems([]); setCollectionTotal(0); }}
         onOpenDetail={setViewedEntry}
         onChangeAssociation={beginMatchCorrection}

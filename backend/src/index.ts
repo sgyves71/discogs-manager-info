@@ -753,19 +753,23 @@ app.post('/api/discogs/collection-sync', async (_req, res) => {
 
 app.get('/api/cds', async (req, res) => {
   const query = String(req.query.q || '').trim();
+  const style = String(req.query.style || '').trim();
   const sort = String(req.query.sort || 'artist');
   const requestedPage = Number(req.query.page || 1);
   const requestedPageSize = Number(req.query.pageSize || 24);
   const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const pageSize = Number.isInteger(requestedPageSize) ? Math.min(Math.max(requestedPageSize, 12), 100) : 24;
-  const where = query ? {
+  const filters = [];
+  if (query) filters.push({
     OR: [
       { artist: { contains: query } },
       { title: { contains: query } },
       { catalogNumber: { contains: query } },
       { barcode: { contains: query } },
     ],
-  } : undefined;
+  });
+  if (style) filters.push({ style: { contains: style } });
+  const where = filters.length ? { AND: filters } : undefined;
   const orderBy = sort === 'discogs-median-desc'
     ? [{ discogsMarketMedian: 'desc' as const }, { artistSortName: 'asc' as const }, { title: 'asc' as const }]
     : sort === 'estimated-value-desc'
@@ -809,6 +813,13 @@ app.get('/api/catalog/statistics', async (_req, res) => {
     estimatedValue: { count: estimatedValues._count.estimatedValue, total: estimatedValues._sum.estimatedValue ?? 0 },
     styles,
   });
+});
+
+app.get('/api/catalog/styles', async (_req, res) => {
+  const entries = await prisma.cdEntry.findMany({ select: { style: true } });
+  const styles = [...new Set(entries.flatMap((entry) => entry.style?.split(',').map((style) => style.trim()).filter(Boolean) ?? []))]
+    .sort((left, right) => left.localeCompare(right));
+  res.json({ styles });
 });
 
 app.get('/api/catalog-cover-backfill', (_req, res) => {

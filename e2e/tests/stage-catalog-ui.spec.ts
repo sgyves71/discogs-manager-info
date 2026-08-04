@@ -47,6 +47,7 @@ test.describe('Stage Catalog User Interface', () => {
   });
 
   test('Displays Catalog Value Statistics', async ({ page }) => {
+    await page.route('/api/catalog/styles', (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ styles: ['Hard Rock', 'Heavy Metal'] }) }));
     await page.route('/api/catalog/statistics', (route) => route.fulfill({
       contentType: 'application/json',
       body: JSON.stringify({
@@ -65,6 +66,8 @@ test.describe('Stage Catalog User Interface', () => {
     await expect(page.getByRole('img', { name: 'Style distribution bar chart' })).toBeVisible();
     await expect(page.getByText('Heavy Metal', { exact: true })).toBeVisible();
     await expect(page.getByText('78.0% · 78 CDs', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'View Heavy Metal catalog entries' }).click();
+    await expect(page.getByRole('combobox', { name: 'Filter Catalog by Style' })).toHaveValue('Heavy Metal');
   });
 
   test('Warns Before Starting a Valuation Update', async ({ page }) => {

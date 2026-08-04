@@ -932,6 +932,22 @@ button:disabled {
 .style-distribution-label strong { color: #edf2f5; }
 .style-distribution-label > span:last-child { white-space: nowrap; }
 
+.style-distribution-entry {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.style-distribution-entry:hover .style-distribution-label strong,
+.style-distribution-entry:focus-visible .style-distribution-label strong {
+  color: #8fd0f2;
+  text-decoration: underline;
+}
+
 .style-distribution-bar-track {
   height: 0.56rem;
   margin-top: 0.35rem;
