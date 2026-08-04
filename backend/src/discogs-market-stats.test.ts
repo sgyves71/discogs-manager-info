@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseDiscogsMarketStats, retainKnownDiscogsMarketStats } from './discogs-market-stats';
+import { parseDiscogsMarketStats, retainKnownDiscogsMarketStats } from './discogs-market-stats.js';
 
 test('parseDiscogsMarketStats Extracts Release Statistics by Label', () => {
   const result = parseDiscogsMarketStats(`

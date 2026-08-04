@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { artistSearchFallbacks, scoreMusicTextMatch, scoreMusicTitleMatch, shortenedArtistSearch } from './music-library';
+import { artistSearchFallbacks, scoreMusicTextMatch, scoreMusicTitleMatch, shortenedArtistSearch } from './music-library.js';
 
 test('scoreMusicTitleMatch Accepts Small Spelling and Filename-Prefix Differences', () => {
   assert.equal(scoreMusicTitleMatch('Rock Rock (Till You Drop)', "01 Def Leppard - Rock Rock (Til' You Drop)"), 0.95);

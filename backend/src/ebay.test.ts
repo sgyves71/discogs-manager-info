@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanEbaySearchText, isMatchingCdAudioListing } from './ebay';
+import { cleanEbaySearchText, isMatchingCdAudioListing } from './ebay.js';
 
 test('cleanEbaySearchText Removes Discogs Suffixes and Non-ASCII Alternate Names', () => {
   assert.equal(cleanEbaySearchText('Loudness (2) = ラウドネス'), 'Loudness');

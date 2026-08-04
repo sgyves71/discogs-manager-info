@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanDiscogsText, getDiscogsPriceSuggestion, getDiscogsReleaseCatalogInfo, normalizeDiscogsResult, searchDiscogsReleases, stripDiscogsArtistDisambiguator } from './discogs';
+import { cleanDiscogsText, getDiscogsPriceSuggestion, getDiscogsReleaseCatalogInfo, normalizeDiscogsResult, searchDiscogsReleases, stripDiscogsArtistDisambiguator } from './discogs.js';
 
 test('normalizeDiscogsResult Builds a Clean Release Summary', () => {
   const result = normalizeDiscogsResult({
@@ -151,7 +151,7 @@ test('getDiscogsReleaseCatalogInfo Uses Release Labels and Excludes Companies', 
   assert.deepEqual(info, {
     label: 'Columbia, Albert Productions',
     catalogNumber: '69699-80202-2',
-    barcode: 'Text: 0 035627 472022 · Scanned: 0035627472022',
+    barcode: '(Text): 0 035627 472022 · (Scanned): 0035627472022',
   });
 });
 

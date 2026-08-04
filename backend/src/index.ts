@@ -10,7 +10,10 @@ import { getEbayActiveListingStats, getEbaySoldListingStats } from './ebay.js';
 import { findYouTubeMatches } from './youtube.js';
 import { artistSearchFallbacks, contentTypeForAudioFile, isDirectory, normalizeMusicText, pathIsWithinRoot, readMusicFileMetadata, scoreMusicTextMatch, scoreMusicTitleMatch, walkAudioFiles } from './music-library.js';
 import { CatalogEnrichmentService } from './services/catalog-enrichment-service.js';
+import { CatalogStatisticsService } from './services/catalog-statistics-service.js';
 import { DiscogsCollectionSyncService } from './services/discogs-collection-sync-service.js';
+import { createCatalogStatisticsRouter } from './routes/catalog-statistics-router.js';
+import { createCatalogEnrichmentRouter } from './routes/catalog-enrichment-router.js';
 import { fetchDiscogsMarketStats } from './discogs-market-stats.js';
 import { getStageDiscogsCatalogInfo, getStageDiscogsContext, getStageDiscogsCover, getStageDiscogsImages, getStageDiscogsTracklist, searchStageDiscogsReleases } from './stage-discogs-fixture.js';
 import { getStageMusicBrainzCatalogContext, searchStageMusicBrainz } from './stage-musicbrainz-fixture.js';
@@ -43,6 +46,18 @@ const ebayMarketplaceId = process.env.EBAY_MARKETPLACE_ID?.trim() || 'EBAY_US';
 const youtubeApiKey = process.env.YOUTUBE_API_KEY?.trim();
 const isStageEnvironment = process.env.APP_ENV === 'stage';
 const catalogEnrichment = new CatalogEnrichmentService(prisma, discogsToken, isStageEnvironment);
+const catalogStatistics = new CatalogStatisticsService({
+  countEntries: () => prisma.cdEntry.count(),
+  aggregateDiscogsMedian: async () => {
+    const result = await prisma.cdEntry.aggregate({ where: { discogsMarketMedian: { not: null } }, _count: { discogsMarketMedian: true }, _sum: { discogsMarketMedian: true } });
+    return { count: result._count.discogsMarketMedian, total: result._sum.discogsMarketMedian ?? 0 };
+  },
+  aggregateEstimatedValue: async () => {
+    const result = await prisma.cdEntry.aggregate({ where: { estimatedValue: { not: null } }, _count: { estimatedValue: true }, _sum: { estimatedValue: true } });
+    return { count: result._count.estimatedValue, total: result._sum.estimatedValue ?? 0 };
+  },
+  findStatisticsEntries: () => prisma.cdEntry.findMany({ select: { style: true, year: true } }),
+});
 const discogsCollectionSync = new DiscogsCollectionSyncService(prisma, discogsToken, isStageEnvironment);
 const coverCache = new Map<number, string | null>();
 const pendingCoverLookups = new Map<number, Promise<string | null>>();
@@ -227,6 +242,8 @@ async function scanMusicLibrary(libraryId: number, rootPath: string) {
 
 app.use(cors());
 app.use(express.json());
+app.use('/api/catalog', createCatalogStatisticsRouter(catalogStatistics, prisma));
+app.use('/api', createCatalogEnrichmentRouter(catalogEnrichment, isStageEnvironment));
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });
@@ -789,134 +806,6 @@ app.get('/api/cds', async (req, res) => {
     items: items.map(({ coverImageData, coverImageMimeType, ...item }) => ({ ...item, hasCover: Boolean(coverImageData && coverImageMimeType) })),
     total, page, pageSize,
   });
-});
-
-app.get('/api/catalog/statistics', async (_req, res) => {
-  const [totalEntries, medianValues, estimatedValues, catalogStyles] = await Promise.all([
-    prisma.cdEntry.count(),
-    prisma.cdEntry.aggregate({ where: { discogsMarketMedian: { not: null } }, _count: { discogsMarketMedian: true }, _sum: { discogsMarketMedian: true } }),
-    prisma.cdEntry.aggregate({ where: { estimatedValue: { not: null } }, _count: { estimatedValue: true }, _sum: { estimatedValue: true } }),
-    prisma.cdEntry.findMany({ select: { style: true, year: true } }),
-  ]);
-  const styleWeights = new Map<string, number>();
-  for (const entry of catalogStyles) {
-    const styles = entry.style?.split(',').map((style) => style.trim()).filter(Boolean) ?? [];
-    const categories = styles.length ? styles : ['Uncategorized'];
-    for (const style of categories) styleWeights.set(style, (styleWeights.get(style) ?? 0) + 1);
-  }
-  const styles = [...styleWeights.entries()]
-    .map(([style, count]) => ({ style, count, percentage: totalEntries ? (count / totalEntries) * 100 : 0 }))
-    .sort((left, right) => right.count - left.count || left.style.localeCompare(right.style));
-  const decadeCounts = new Map<string, number>();
-  for (const entry of catalogStyles) {
-    const decade = entry.year && entry.year >= 1000 && entry.year <= 9999
-      ? `${Math.floor(entry.year / 10) * 10}s`
-      : 'Unknown Year';
-    decadeCounts.set(decade, (decadeCounts.get(decade) ?? 0) + 1);
-  }
-  const decades = [...decadeCounts.entries()]
-    .map(([decade, count]) => ({ decade, count, percentage: totalEntries ? (count / totalEntries) * 100 : 0, sortYear: decade === 'Unknown Year' ? Number.POSITIVE_INFINITY : Number.parseInt(decade, 10) }))
-    .sort((left, right) => left.sortYear - right.sortYear)
-    .map(({ sortYear: _sortYear, ...decade }) => decade);
-  res.json({
-    totalEntries,
-    discogsMedian: { count: medianValues._count.discogsMarketMedian, total: medianValues._sum.discogsMarketMedian ?? 0 },
-    estimatedValue: { count: estimatedValues._count.estimatedValue, total: estimatedValues._sum.estimatedValue ?? 0 },
-    styles,
-    decades,
-  });
-});
-
-app.get('/api/catalog/styles', async (_req, res) => {
-  const entries = await prisma.cdEntry.findMany({ select: { style: true } });
-  const styles = [...new Set(entries.flatMap((entry) => entry.style?.split(',').map((style) => style.trim()).filter(Boolean) ?? []))]
-    .sort((left, right) => left.localeCompare(right));
-  res.json({ styles });
-});
-
-app.get('/api/catalog-cover-backfill', (_req, res) => {
-  res.json(catalogEnrichment.coverBackfill);
-});
-
-app.post('/api/catalog-cover-backfill', async (_req, res) => {
-  if (catalogEnrichment.coverBackfill.status === 'running') {
-    res.status(409).json({ error: 'Cover-art backfill is already running.' });
-    return;
-  }
-  if (!catalogEnrichment.hasDiscogsAccess) {
-    res.status(503).json({ error: 'Discogs authentication is not configured.' });
-    return;
-  }
-  void catalogEnrichment.startCoverBackfill();
-  res.status(202).json(catalogEnrichment.coverBackfill);
-});
-
-app.get('/api/catalog-release-info-backfill', (_req, res) => {
-  res.json(catalogEnrichment.releaseInfoBackfill);
-});
-
-app.post('/api/catalog-release-info-backfill', async (_req, res) => {
-  if (catalogEnrichment.releaseInfoBackfill.status === 'running') {
-    res.status(409).json({ error: 'Release-label backfill is already running.' });
-    return;
-  }
-  if (!catalogEnrichment.hasDiscogsAccess) {
-    res.status(503).json({ error: 'Discogs authentication is not configured.' });
-    return;
-  }
-  void catalogEnrichment.startReleaseInfoBackfill();
-  res.status(202).json(catalogEnrichment.releaseInfoBackfill);
-});
-
-app.get('/api/catalog-discogs-context-backfill', (_req, res) => {
-  res.json(catalogEnrichment.contextBackfill);
-});
-
-app.post('/api/catalog-discogs-context-backfill', async (_req, res) => {
-  if (catalogEnrichment.contextBackfill.status === 'running') {
-    res.status(409).json({ error: 'Discogs-context backfill is already running.' });
-    return;
-  }
-  if (!catalogEnrichment.hasDiscogsAccess) {
-    res.status(503).json({ error: 'Discogs authentication is not configured.' });
-    return;
-  }
-  void catalogEnrichment.startContextBackfill();
-  res.status(202).json(catalogEnrichment.contextBackfill);
-});
-
-app.get('/api/catalog-genre-style-backfill', (_req, res) => {
-  res.json(catalogEnrichment.genreStyleBackfill);
-});
-
-app.post('/api/catalog-genre-style-backfill', async (_req, res) => {
-  if (catalogEnrichment.genreStyleBackfill.status === 'running') {
-    res.status(409).json({ error: 'Genre/style backfill is already running.' });
-    return;
-  }
-  if (!catalogEnrichment.hasDiscogsAccess) {
-    res.status(503).json({ error: 'Discogs authentication is not configured.' });
-    return;
-  }
-  void catalogEnrichment.startGenreStyleBackfill();
-  res.status(202).json(catalogEnrichment.genreStyleBackfill);
-});
-
-app.get('/api/catalog-discogs-market-stats-backfill', (_req, res) => {
-  res.json(catalogEnrichment.marketStatsBackfill);
-});
-
-app.post('/api/catalog-discogs-market-stats-backfill', async (_req, res) => {
-  if (catalogEnrichment.marketStatsBackfill.status === 'running') {
-    res.status(409).json({ error: 'Discogs market-statistics backfill is already running.' });
-    return;
-  }
-  if (isStageEnvironment) {
-    res.status(503).json({ error: 'Live Discogs page scraping is disabled in Stage.' });
-    return;
-  }
-  void catalogEnrichment.startMarketStatsBackfill();
-  res.status(202).json(catalogEnrichment.marketStatsBackfill);
 });
 
 app.get('/api/cds/:id/cover', async (req, res) => {
