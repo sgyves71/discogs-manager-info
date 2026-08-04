@@ -32,6 +32,12 @@ test.describe('Stage Discogs Mock', () => {
     expect(await response.json()).toEqual([]);
   });
 
+  test('Returns Stable Cover Art for a Stage Release', async ({ request }) => {
+    const response = await request.get(`${apiUrl}/api/discogs/releases/900101/cover`);
+    await expect(response).toBeOK();
+    expect(await response.json()).toMatchObject({ coverImage: expect.stringContaining('data:image/svg+xml') });
+  });
+
   test('Offers Voice Entry for a Catalog Number', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('button', { name: 'Speak Catalog Number' })).toBeVisible();

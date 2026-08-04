@@ -11,6 +11,7 @@ import { findYouTubeMatches } from './youtube.js';
 import { artistSearchFallbacks, contentTypeForAudioFile, isDirectory, normalizeMusicText, pathIsWithinRoot, readMusicFileMetadata, scoreMusicTextMatch, scoreMusicTitleMatch, walkAudioFiles } from './music-library.js';
 import { CatalogEnrichmentService } from './services/catalog-enrichment-service.js';
 import { CatalogStatisticsService } from './services/catalog-statistics-service.js';
+import { DiscogsCoverLookupService } from './services/discogs-cover-lookup-service.js';
 import { DiscogsCollectionSyncService } from './services/discogs-collection-sync-service.js';
 import { createCatalogStatisticsRouter } from './routes/catalog-statistics-router.js';
 import { createCatalogEnrichmentRouter } from './routes/catalog-enrichment-router.js';
@@ -59,8 +60,7 @@ const catalogStatistics = new CatalogStatisticsService({
   findStatisticsEntries: () => prisma.cdEntry.findMany({ select: { style: true, year: true } }),
 });
 const discogsCollectionSync = new DiscogsCollectionSyncService(prisma, discogsToken, isStageEnvironment);
-const coverCache = new Map<number, string | null>();
-const pendingCoverLookups = new Map<number, Promise<string | null>>();
+const discogsCoverLookup = new DiscogsCoverLookupService((releaseId) => getDiscogsReleaseCover(releaseId, discogsToken!));
 const libraryScanState: { status: 'idle' | 'scanning' | 'complete' | 'failed'; scannedFiles: number; indexedFiles: number; skippedFiles: number; error: string | null } = {
   status: 'idle', scannedFiles: 0, indexedFiles: 0, skippedFiles: 0, error: null,
 };
@@ -1011,24 +1011,8 @@ app.get('/api/discogs/releases/:id/cover', async (req, res) => {
     return;
   }
 
-  if (coverCache.has(releaseId)) {
-    res.json({ coverImage: coverCache.get(releaseId) });
-    return;
-  }
-
-  let lookup = pendingCoverLookups.get(releaseId);
-  if (!lookup) {
-    lookup = getDiscogsReleaseCover(releaseId, discogsToken)
-      .then((coverImage) => {
-        coverCache.set(releaseId, coverImage);
-        return coverImage;
-      })
-      .finally(() => pendingCoverLookups.delete(releaseId));
-    pendingCoverLookups.set(releaseId, lookup);
-  }
-
   try {
-    res.json({ coverImage: await lookup });
+    res.json({ coverImage: await discogsCoverLookup.getCover(releaseId) });
   } catch (error) {
     console.error('Discogs cover lookup failed:', error);
     res.status(502).json({ error: 'Unable to load cover art right now.' });
