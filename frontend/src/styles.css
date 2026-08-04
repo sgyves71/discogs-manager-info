@@ -909,45 +909,18 @@ button:disabled {
   margin: 0;
 }
 
-.genre-distribution-content {
-  display: flex;
-  align-items: center;
-  gap: 2rem;
-  margin-top: 1rem;
-}
+.style-distribution-content { margin-top: 1rem; }
 
-.genre-pie-chart {
+.style-distribution-list {
   display: grid;
-  place-content: center;
-  flex: 0 0 220px;
-  width: 220px;
-  height: 220px;
-  border-radius: 50%;
-  color: #f4f7f9;
-  text-align: center;
-  box-shadow: inset 0 0 0 2px rgba(8, 13, 18, 0.55), 0 10px 24px rgba(0, 0, 0, 0.28);
-}
-
-.genre-pie-chart strong {
-  font-size: 1.8rem;
-}
-
-.genre-pie-chart span {
-  color: #d3dce3;
-  font-size: 0.85rem;
-}
-
-.genre-legend {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(190px, 1fr));
-  gap: 0.55rem 1.25rem;
-  flex: 1;
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
+  gap: 0.8rem 1.5rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.genre-legend li {
+.style-distribution-label {
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
@@ -956,8 +929,24 @@ button:disabled {
   font-size: 0.88rem;
 }
 
-.genre-legend li strong { color: #edf2f5; }
-.genre-legend li > span:last-child { white-space: nowrap; }
+.style-distribution-label strong { color: #edf2f5; }
+.style-distribution-label > span:last-child { white-space: nowrap; }
+
+.style-distribution-bar-track {
+  height: 0.56rem;
+  margin-top: 0.35rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #121a20;
+  box-shadow: inset 0 0 0 1px #42505b;
+}
+
+.style-distribution-bar {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  border-radius: inherit;
+}
 
 .genre-legend-swatch {
   width: 0.8rem;
@@ -982,9 +971,7 @@ button:disabled {
 
 @media (max-width: 760px) {
   .catalog-statistics-grid { grid-template-columns: 1fr; }
-  .genre-distribution-content { align-items: flex-start; flex-direction: column; gap: 1rem; }
-  .genre-pie-chart { width: 180px; height: 180px; flex-basis: 180px; }
-  .genre-legend { grid-template-columns: 1fr; width: 100%; }
+  .style-distribution-list { grid-template-columns: 1fr; }
   .collection-sort { width: 100%; }
   .collection-sort select { flex: 1; }
 }

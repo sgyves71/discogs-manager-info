@@ -62,7 +62,7 @@ test.describe('Stage Catalog User Interface', () => {
     await expect(page.getByText('$1,834.50', { exact: true })).toBeVisible();
     await expect(page.getByText('72 releases with a known Discogs median', { exact: true })).toBeVisible();
     await expect(page.getByText('$2,100.00', { exact: true })).toBeVisible();
-    await expect(page.getByRole('img', { name: 'Style distribution pie chart' })).toBeVisible();
+    await expect(page.getByRole('img', { name: 'Style distribution bar chart' })).toBeVisible();
     await expect(page.getByText('Heavy Metal', { exact: true })).toBeVisible();
     await expect(page.getByText('78.0% · 78 CDs', { exact: true })).toBeVisible();
   });

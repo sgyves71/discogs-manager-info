@@ -266,16 +266,6 @@ function formatDiscogsMarketDate(value: string | null | undefined): string {
   return Number.isNaN(date.getTime()) ? 'Not available' : date.toLocaleDateString();
 }
 
-function stylePieGradient(styles: CatalogStatistics['styles']): string {
-  let position = 0;
-  const segments = styles.map((style, index) => {
-    const start = position;
-    position += style.percentage;
-    return `${STYLE_CHART_COLORS[index % STYLE_CHART_COLORS.length]} ${start}% ${position}%`;
-  });
-  return segments.length ? `conic-gradient(${segments.join(', ')})` : 'conic-gradient(#44515c 0% 100%)';
-}
-
 function catalogCoverUrl(entry: Pick<CdEntry, 'id' | 'coverImageUpdatedAt'>): string {
   return `/api/cds/${entry.id}/cover${entry.coverImageUpdatedAt ? `?updated=${encodeURIComponent(entry.coverImageUpdatedAt)}` : ''}`;
 }
@@ -1702,21 +1692,16 @@ function App() {
           <section className="card genre-distribution-card">
             <div>
               <h2>Style Distribution</h2>
-              <p className="hint">Each release contributes equally. Multi-style releases are divided evenly across their listed styles.</p>
+              <p className="hint">Each style shows the share of catalog CDs carrying that tag. Multi-style releases appear in every applicable style, so percentages may total more than 100%.</p>
             </div>
-            {catalogStatistics ? <div className="genre-distribution-content">
-              <div className="genre-pie-chart" role="img" aria-label="Style distribution pie chart" style={{ background: stylePieGradient(catalogStatistics.styles) }}>
-                <strong>{catalogStatistics.totalEntries.toLocaleString()}</strong>
-                <span>CDs</span>
-              </div>
-              <ul className="genre-legend">
+            {catalogStatistics ? <div className="style-distribution-content" role="img" aria-label="Style distribution bar chart">
+              <ul className="style-distribution-list">
                 {catalogStatistics.styles.map((style, index) => <li key={style.style}>
-                  <span className="genre-legend-swatch" style={{ backgroundColor: STYLE_CHART_COLORS[index % STYLE_CHART_COLORS.length] }} aria-hidden="true" />
-                  <strong>{style.style}</strong>
-                  <span>{style.percentage.toFixed(1)}% · {style.count % 1 ? style.count.toFixed(1) : style.count.toLocaleString()} CDs</span>
+                  <div className="style-distribution-label"><span className="genre-legend-swatch" style={{ backgroundColor: STYLE_CHART_COLORS[index % STYLE_CHART_COLORS.length] }} aria-hidden="true" /><strong>{style.style}</strong><span>{style.percentage.toFixed(1)}% · {style.count.toLocaleString()} CDs</span></div>
+                  <div className="style-distribution-bar-track"><span className="style-distribution-bar" style={{ width: `${style.percentage}%`, backgroundColor: STYLE_CHART_COLORS[index % STYLE_CHART_COLORS.length] }} /></div>
                 </li>)}
               </ul>
-            </div> : <p className="hint">Loading genre distribution…</p>}
+            </div> : <p className="hint">Loading style distribution…</p>}
           </section>
           {catalogStatisticsStatus ? <p className="hint">{catalogStatisticsStatus}</p> : null}
         </>

@@ -798,8 +798,7 @@ app.get('/api/catalog/statistics', async (_req, res) => {
   for (const entry of catalogStyles) {
     const styles = entry.style?.split(',').map((style) => style.trim()).filter(Boolean) ?? [];
     const categories = styles.length ? styles : ['Uncategorized'];
-    const weight = 1 / categories.length;
-    for (const style of categories) styleWeights.set(style, (styleWeights.get(style) ?? 0) + weight);
+    for (const style of categories) styleWeights.set(style, (styleWeights.get(style) ?? 0) + 1);
   }
   const styles = [...styleWeights.entries()]
     .map(([style, count]) => ({ style, count, percentage: totalEntries ? (count / totalEntries) * 100 : 0 }))
