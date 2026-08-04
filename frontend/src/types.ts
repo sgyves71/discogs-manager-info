@@ -33,3 +33,40 @@ export type CdEntry = {
   personalAlbumFolderPath?: string | null;
   personalAlbumFolderMappedAt?: string | null;
 };
+
+export type MusicLibraryInfo = {
+  rootPath: string | null;
+  lastScannedAt: string | null;
+  trackCount: number;
+  scan: { status: 'idle' | 'scanning' | 'complete' | 'failed'; scannedFiles: number; indexedFiles: number; skippedFiles: number; error: string | null };
+  catalogLocationScan: { status: 'idle' | 'scanning' | 'complete' | 'failed'; total: number; processed: number; matched: number; alreadyMapped: number; unmatched: number; error: string | null };
+};
+
+export type MarketStatsBackfill = {
+  status: 'idle' | 'running' | 'complete' | 'failed';
+  processed: number;
+  stored?: number;
+  skipped: number;
+  total: number;
+  error: string | null;
+};
+
+export type DiscogsCollectionSync = {
+  status: 'idle' | 'running' | 'complete' | 'failed';
+  total: number;
+  processed: number;
+  added: number;
+  alreadyInCollection: number;
+  skipped: number;
+  failed: number;
+  username: string | null;
+  error: string | null;
+};
+
+export type DiscogsCollectionSyncInfo = {
+  configured: boolean;
+  eligible: number;
+  previouslySynced: number;
+  pending: number;
+  sync: DiscogsCollectionSync;
+};

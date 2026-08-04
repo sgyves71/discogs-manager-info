@@ -4,7 +4,8 @@ import { ArtistSummaryDialog } from './components/ArtistSummaryDialog';
 import { CatalogPage } from './components/CatalogPage';
 import { CatalogStatisticsPage, type CatalogStatistics } from './components/CatalogStatisticsPage';
 import { LocalAudioPlayer } from './components/LocalAudioPlayer';
-import type { CdEntry } from './types';
+import { MusicLibraryPage } from './components/MusicLibraryPage';
+import type { CdEntry, DiscogsCollectionSync, DiscogsCollectionSyncInfo, MarketStatsBackfill, MusicLibraryInfo } from './types';
 
 type CatalogDetailsForm = {
   title: string;
@@ -104,35 +105,6 @@ type DiscogsReleaseTrack = {
   isComposite?: boolean;
 };
 
-type MarketStatsBackfill = {
-  status: 'idle' | 'running' | 'complete' | 'failed';
-  processed: number;
-  stored?: number;
-  skipped: number;
-  total: number;
-  error: string | null;
-};
-
-type DiscogsCollectionSync = {
-  status: 'idle' | 'running' | 'complete' | 'failed';
-  total: number;
-  processed: number;
-  added: number;
-  alreadyInCollection: number;
-  skipped: number;
-  failed: number;
-  username: string | null;
-  error: string | null;
-};
-
-type DiscogsCollectionSyncInfo = {
-  configured: boolean;
-  eligible: number;
-  previouslySynced: number;
-  pending: number;
-  sync: DiscogsCollectionSync;
-};
-
 type SpeechRecognitionAlternativeLike = { transcript: string };
 type SpeechRecognitionLike = {
   lang: string;
@@ -184,14 +156,6 @@ type YouTubePlayer = {
   videoId: string;
   title: string;
   watchUrl: string;
-};
-
-type MusicLibraryInfo = {
-  rootPath: string | null;
-  lastScannedAt: string | null;
-  trackCount: number;
-  scan: { status: 'idle' | 'scanning' | 'complete' | 'failed'; scannedFiles: number; indexedFiles: number; skippedFiles: number; error: string | null };
-  catalogLocationScan: { status: 'idle' | 'scanning' | 'complete' | 'failed'; total: number; processed: number; matched: number; alreadyMapped: number; unmatched: number; error: string | null };
 };
 
 type PersonalTrackMatch = {
@@ -1688,60 +1652,22 @@ function App() {
           setActivePage('catalog');
         }}
       />}
-      {activePage === 'library' && (
-        <>
-          <h1>Music Library</h1>
-          <p>Connect the folder containing your personally ripped and tagged music. Files remain on this PC and are only streamed locally when you choose to play one.</p>
-          <div className="card music-library-card">
-            <h2>Personal music folder</h2>
-            <label htmlFor="music-library-path">Library Folder</label>
-            <input id="music-library-path" value={musicLibraryPath} onChange={(event) => setMusicLibraryPath(event.target.value)} placeholder="H:\\Music\\Rips" />
-            <div className="form-actions">
-              <button type="button" onClick={() => void saveMusicLibrary()} disabled={savingMusicLibrary || !musicLibraryPath.trim()}>{savingMusicLibrary ? 'Saving...' : 'Save Folder'}</button>
-              <button type="button" className="secondary-button" onClick={() => void scanMusicLibrary()} disabled={!musicLibrary?.rootPath || musicLibrary.scan.status === 'scanning'}>{musicLibrary?.scan.status === 'scanning' ? 'Scanning...' : 'Scan Library'}</button>
-            </div>
-            {musicLibrary?.rootPath ? <div className="music-library-summary"><strong>Current folder:</strong> {musicLibrary.rootPath}<br /><strong>Indexed tracks:</strong> {musicLibrary.trackCount.toLocaleString()}{musicLibrary.lastScannedAt ? <> · last scan {new Date(musicLibrary.lastScannedAt).toLocaleString()}</> : null}</div> : <p className="hint">Save the folder first, then run the initial scan.</p>}
-            {musicLibrary?.scan.status === 'scanning' ? <p className="hint">Scanning: {musicLibrary.scan.scannedFiles.toLocaleString()} files checked · {musicLibrary.scan.indexedFiles.toLocaleString()} indexed · {musicLibrary.scan.skippedFiles.toLocaleString()} skipped</p> : null}
-            {musicLibrary?.scan.status === 'failed' ? <p className="hint">Scan failed: {musicLibrary.scan.error}</p> : null}
-            {musicLibraryStatus ? <p className="hint">{musicLibraryStatus}</p> : null}
-          </div>
-          <div className="card music-library-card">
-            <h2>Catalog Local Copies</h2>
-            <p>Compare every catalog artist and album against your indexed, tagged music and save high-confidence album-folder matches. This uses only your local database and files already indexed by Scan Library.</p>
-            <div className="form-actions">
-              <button type="button" onClick={() => void scanCatalogPersonalLocations()} disabled={!musicLibrary?.rootPath || musicLibrary.trackCount === 0 || musicLibrary.catalogLocationScan.status === 'scanning' || musicLibrary.scan.status === 'scanning'}>{musicLibrary?.catalogLocationScan.status === 'scanning' ? 'Matching Catalog...' : 'Scan Catalog for Local Copies'}</button>
-            </div>
-            {musicLibrary?.catalogLocationScan.status === 'scanning' ? <p className="hint">Progress: {musicLibrary.catalogLocationScan.processed.toLocaleString()} / {musicLibrary.catalogLocationScan.total.toLocaleString()} catalog albums checked · {musicLibrary.catalogLocationScan.matched.toLocaleString()} new matches · {musicLibrary.catalogLocationScan.alreadyMapped.toLocaleString()} already linked</p> : null}
-            {musicLibrary?.catalogLocationScan.status === 'complete' ? <p className="hint">Complete: {musicLibrary.catalogLocationScan.processed.toLocaleString()} catalog albums checked · {musicLibrary.catalogLocationScan.matched.toLocaleString()} new matches · {musicLibrary.catalogLocationScan.alreadyMapped.toLocaleString()} existing links retained · {musicLibrary.catalogLocationScan.unmatched.toLocaleString()} not found.</p> : null}
-            {musicLibrary?.catalogLocationScan.status === 'failed' ? <p className="hint">Catalog local-copy matching failed: {musicLibrary.catalogLocationScan.error || 'Unknown error.'}</p> : null}
-          </div>
-          <div className="card music-library-card">
-            <h2>Catalog valuations</h2>
-            <p>Refresh Discogs Last Sold, Low, Median, and High values for every catalog entry with a Discogs release. The process runs in the background at a respectful pace.</p>
-            <div className="form-actions">
-              <button type="button" onClick={() => void startMarketStatsBackfill()} disabled={marketStatsBackfill?.status === 'running'}>{marketStatsBackfill?.status === 'running' ? 'Updating Valuations...' : 'Update Valuations'}</button>
-            </div>
-            {marketStatsBackfill?.status === 'running' ? <p className="hint">Progress: {marketStatsBackfill.processed.toLocaleString()} / {marketStatsBackfill.total.toLocaleString()} releases checked - {marketStatsBackfill.stored ?? 0} with market data - {marketStatsBackfill.skipped.toLocaleString()} unavailable</p> : null}
-            {marketStatsBackfill?.status === 'complete' ? <p className="hint">Last update complete: {marketStatsBackfill.processed.toLocaleString()} releases checked - {marketStatsBackfill.stored ?? 0} with market data - {marketStatsBackfill.skipped.toLocaleString()} unavailable.</p> : null}
-            {marketStatsBackfill?.status === 'failed' ? <p className="hint">Valuation update failed: {marketStatsBackfill.error || 'Unknown error.'}</p> : null}
-            {marketStatsBackfillStatus ? <p className="hint">{marketStatsBackfillStatus}</p> : null}
-          </div>
-          <div className="card music-library-card">
-            <h2>Discogs Collection Sync</h2>
-            <p>Add your cataloged Discogs releases to your authenticated Discogs Collection. The app checks what you already have first and never removes remote entries.</p>
-            {!discogsCollectionSync?.configured ? <p className="hint">Discogs authentication is not configured.</p> : <>
-              <p className="hint">{discogsCollectionSync.eligible.toLocaleString()} catalog releases can sync · {discogsCollectionSync.previouslySynced.toLocaleString()} previously recorded as synced · up to {discogsCollectionSync.pending.toLocaleString()} pending.</p>
-              <div className="form-actions">
-                <button type="button" onClick={() => void startDiscogsCollectionSync()} disabled={discogsCollectionSync.sync.status === 'running'}>{discogsCollectionSync.sync.status === 'running' ? 'Syncing Discogs Collection...' : 'Sync Catalog to Discogs'}</button>
-              </div>
-              {discogsCollectionSync.sync.status === 'running' ? <p className="hint">Progress: {discogsCollectionSync.sync.processed.toLocaleString()} / {discogsCollectionSync.sync.total.toLocaleString()} · {discogsCollectionSync.sync.added.toLocaleString()} added · {discogsCollectionSync.sync.alreadyInCollection.toLocaleString()} already in Discogs.</p> : null}
-              {discogsCollectionSync.sync.status === 'complete' ? <p className="hint">Sync complete{discogsCollectionSync.sync.username ? ` for ${discogsCollectionSync.sync.username}` : ''}: {discogsCollectionSync.sync.added.toLocaleString()} added · {discogsCollectionSync.sync.alreadyInCollection.toLocaleString()} already in Discogs · {discogsCollectionSync.sync.failed.toLocaleString()} failed.</p> : null}
-              {discogsCollectionSync.sync.status === 'failed' ? <p className="hint">Sync failed: {discogsCollectionSync.sync.error || 'Unknown error.'}</p> : null}
-            </>}
-            {discogsCollectionSyncStatus ? <p className="hint">{discogsCollectionSyncStatus}</p> : null}
-          </div>
-        </>
-      )}
+      {activePage === 'library' && <MusicLibraryPage
+        library={musicLibrary}
+        libraryPath={musicLibraryPath}
+        libraryStatus={musicLibraryStatus}
+        savingLibrary={savingMusicLibrary}
+        marketStatsBackfill={marketStatsBackfill}
+        marketStatsBackfillStatus={marketStatsBackfillStatus}
+        discogsCollectionSync={discogsCollectionSync}
+        discogsCollectionSyncStatus={discogsCollectionSyncStatus}
+        onLibraryPathChange={setMusicLibraryPath}
+        onSaveLibrary={() => void saveMusicLibrary()}
+        onScanLibrary={() => void scanMusicLibrary()}
+        onScanCatalogLocations={() => void scanCatalogPersonalLocations()}
+        onUpdateValuations={() => void startMarketStatsBackfill()}
+        onSyncDiscogsCollection={() => void startDiscogsCollectionSync()}
+      />}
       {activePage === 'search' && (
         <>
       <h1>Search &amp; Scan</h1>
