@@ -7,6 +7,7 @@ import { LocalAudioPlayer } from './components/LocalAudioPlayer';
 import { MusicLibraryPage } from './components/MusicLibraryPage';
 import { SearchScanControls } from './components/SearchScanControls';
 import { SearchResultsList } from './components/SearchResultsList';
+import { SelectedReleaseEditor } from './components/SelectedReleaseEditor';
 import type { CdEntry, DiscogsCollectionSync, DiscogsCollectionSyncInfo, MarketStatsBackfill, MusicLibraryInfo } from './types';
 
 type CatalogDetailsForm = {
@@ -1767,52 +1768,7 @@ function App() {
 
       </section>
 
-      <aside className="card selected-release-panel" ref={selectedReleasePanelRef} tabIndex={-1}>
-        <h2>Selected release</h2>
-        {selectedRelease ? (
-          <>
-            <div className="selected-release-summary">
-              <strong>{selectedRelease.artist} — {selectedRelease.title}</strong>
-              <div>{selectedRelease.format || 'Format unknown'}{selectedRelease.year ? ` • ${selectedRelease.year}` : ''}</div>
-              <div><strong>Label:</strong> {selectedRelease.label || 'Not listed'}</div>
-              <div><strong>Catalog Number:</strong> {selectedRelease.catalogNumber || 'Not listed'}</div>
-              {selectedRelease.barcode ? <div><strong>Barcode:</strong> {selectedRelease.barcode}</div> : null}
-              {releaseContext?.genre ? <div><strong>Genre:</strong> {releaseContext.genre}</div> : null}
-              {releaseContext?.style ? <div><strong>Style:</strong> {releaseContext.style}</div> : null}
-            </div>
-        <form id="catalog-entry-form" onSubmit={handleSave}>
-          <label>Title</label>
-          <input value={selectedRelease?.title || title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" />
-
-          <label>Artist</label>
-          <input value={selectedRelease?.artist || artist} onChange={(e) => setArtist(e.target.value)} placeholder="Artist" />
-
-          <label>Notes</label>
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Condition, purchase details, etc." />
-
-          <label>Media Condition</label>
-          <select value={mediaCondition} onChange={(e) => setMediaCondition(e.target.value)}>
-            <option value="">Not specified</option>
-            {MEDIA_CONDITIONS.map((condition) => <option key={condition} value={condition}>{condition}</option>)}
-          </select>
-
-          <label>Estimated Value</label>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={estimatedValueOverride}
-            onChange={(e) => { setEstimatedValueOverride(e.target.value); setHasEstimatedValueOverride(true); }}
-            placeholder="15.00"
-          />
-
-          {status ? <p className="status">{status}</p> : null}
-          {entryBeingCorrected ? <div className="form-actions"><button type="button" className="secondary-button" onClick={cancelMatchCorrection}>Cancel Correction</button></div> : null}
-          <div className="form-actions"><button type="submit" disabled={Boolean(catalogSaveAction)}>{entryBeingCorrected ? 'Apply Corrected Match' : 'Add to Catalog'}</button></div>
-        </form>
-          </>
-        ) : <p className="hint">Select a release result to review it and add it to your catalog.</p>}
-      </aside>
+      <SelectedReleaseEditor panelRef={selectedReleasePanelRef} release={selectedRelease} context={releaseContext} title={title} artist={artist} notes={notes} mediaCondition={mediaCondition} estimatedValue={estimatedValueOverride} mediaConditions={MEDIA_CONDITIONS} status={status} correcting={Boolean(entryBeingCorrected)} saving={Boolean(catalogSaveAction)} onTitleChange={setTitle} onArtistChange={setArtist} onNotesChange={setNotes} onMediaConditionChange={setMediaCondition} onEstimatedValueChange={(value) => { setEstimatedValueOverride(value); setHasEstimatedValueOverride(true); }} onSave={handleSave} onCancelCorrection={cancelMatchCorrection} />
       </div>
         </>
       )}
