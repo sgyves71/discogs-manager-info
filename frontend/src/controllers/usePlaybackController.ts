@@ -129,7 +129,10 @@ export function usePlaybackController(detail: CatalogDetailController, dependenc
     if (!viewedEntry) return;
     setPersonalMusicStatus(`Looking for “${track.title}” in your personal music library...`);
     try {
+      const playableTracks = detailTracks.filter((candidate) => !candidate.isComposite);
+      const sequenceNumber = playableTracks.findIndex((candidate) => trackKey(candidate) === trackKey(track)) + 1;
       const params = new URLSearchParams({ cdEntryId: String(viewedEntry.id), trackKey: trackKey(track), trackTitle: track.title });
+      if (sequenceNumber > 0) params.set('sequenceNumber', String(sequenceNumber));
       const response = await fetch(`/api/music-library/matches/find?${params.toString()}`);
       const data = await response.json() as { status?: 'matched' | 'notFound' | 'unindexed'; match?: PersonalTrackMatch | null; error?: string };
       if (!response.ok) throw new Error(data.error || 'Unable to search the personal music library.');
@@ -213,7 +216,7 @@ export function usePlaybackController(detail: CatalogDetailController, dependenc
       const response = await fetch(`/api/cds/${viewedEntry.id}/personal-track-matches/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tracks: playableTracks.map((track) => ({ trackKey: trackKey(track), title: track.title })) }),
+        body: JSON.stringify({ tracks: playableTracks.map((track, index) => ({ trackKey: trackKey(track), title: track.title, sequenceNumber: index + 1 })) }),
       });
       const responseText = await response.text();
       let data: { matches?: PersonalTrackMatch[]; matchedCount?: number; unmatchedCount?: number; error?: string } = {};

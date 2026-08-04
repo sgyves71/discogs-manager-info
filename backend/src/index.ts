@@ -9,6 +9,7 @@ import { getMusicBrainzCatalogContext, searchMusicBrainz } from './musicbrainz.j
 import { getEbayActiveListingStats, getEbaySoldListingStats } from './ebay.js';
 import { findYouTubeMatches } from './youtube.js';
 import { artistSearchFallbacks, contentTypeForAudioFile, isDirectory, normalizeMusicText, pathIsWithinRoot, readMusicFileMetadata, scoreMusicTextMatch, scoreMusicTitleMatch, walkAudioFiles } from './music-library.js';
+import { physicalTrackKeys } from './personal-track-matching.js';
 import { CatalogEnrichmentService } from './services/catalog-enrichment-service.js';
 import { CatalogStatisticsService } from './services/catalog-statistics-service.js';
 import { DiscogsCoverLookupService } from './services/discogs-cover-lookup-service.js';
@@ -349,6 +350,8 @@ app.get('/api/music-library/matches/find', async (req, res) => {
   const cdEntryId = Number(req.query.cdEntryId);
   const trackKey = String(req.query.trackKey || '').trim();
   const trackTitle = String(req.query.trackTitle || '').trim();
+  const sequenceNumber = Number(req.query.sequenceNumber);
+  const validSequenceNumber = Number.isInteger(sequenceNumber) && sequenceNumber > 0 ? sequenceNumber : null;
   if (!Number.isInteger(cdEntryId) || cdEntryId <= 0 || !trackKey || !trackTitle) {
     res.status(400).json({ error: 'A catalog entry and track are required.' });
     return;
@@ -367,10 +370,13 @@ app.get('/api/music-library/matches/find', async (req, res) => {
     .map((candidate) => {
       const albumScore = scoreMusicTitleMatch(entry.title, candidate.album);
       const titleScore = scoreMusicTitleMatch(trackTitle, candidate.title);
-      return { candidate, albumScore, titleScore, score: (albumScore * 0.6) + (titleScore * 0.4) };
+      const trackNumberMatches = validSequenceNumber !== null && candidate.trackNumber === validSequenceNumber;
+      return { candidate, albumScore, titleScore, trackNumberMatches, score: (albumScore * 0.5) + (titleScore * 0.4) + (trackNumberMatches ? 0.1 : 0) };
     })
-    .filter((candidate) => (mappedCandidates.length ? candidate.titleScore >= 0.75 : candidate.albumScore >= 0.55 && candidate.titleScore >= 0.75))
-    .sort((left, right) => right.score - left.score || right.albumScore - left.albumScore || right.titleScore - left.titleScore);
+    .filter((candidate) => (mappedCandidates.length
+      ? candidate.titleScore >= 0.75 || candidate.trackNumberMatches && candidate.titleScore >= 0.55
+      : candidate.albumScore >= 0.55 && (candidate.titleScore >= 0.75 || candidate.trackNumberMatches && candidate.titleScore >= 0.55)))
+    .sort((left, right) => right.score - left.score || Number(right.trackNumberMatches) - Number(left.trackNumberMatches) || right.titleScore - left.titleScore);
   const libraryTrack = rankedCandidates[0]?.candidate ?? null;
   if (!libraryTrack) {
     const trackCount = await prisma.musicLibraryTrack.count({ where: { libraryId: library.id } });
@@ -522,8 +528,13 @@ app.post('/api/cds/:id/personal-track-matches/sync', async (req, res) => {
   const tracks = Array.isArray(req.body?.tracks)
     ? req.body.tracks
       .map((track: unknown) => {
-        const candidate = track as { trackKey?: unknown; title?: unknown };
-        return { trackKey: String(candidate.trackKey ?? '').trim(), title: String(candidate.title ?? '').trim() };
+        const candidate = track as { trackKey?: unknown; title?: unknown; sequenceNumber?: unknown };
+        const sequenceNumber = Number(candidate.sequenceNumber);
+        return {
+          trackKey: String(candidate.trackKey ?? '').trim(),
+          title: String(candidate.title ?? '').trim(),
+          sequenceNumber: Number.isInteger(sequenceNumber) && sequenceNumber > 0 ? sequenceNumber : undefined,
+        };
       })
       .filter((track: { trackKey: string; title: string }) => track.trackKey && track.title)
     : [];
@@ -551,20 +562,30 @@ app.post('/api/cds/:id/personal-track-matches/sync', async (req, res) => {
 
   const previousMatchByKey = new Map(existingMatches.map((match) => [match.trackKey, match.libraryTrackId]));
   const usedLibraryTrackIds = new Set<number>();
+  const physicalKeyByTrackKey = physicalTrackKeys(tracks);
+  const libraryTrackByPhysicalKey = new Map<string, number>();
   const savedMatches = [];
   for (const track of tracks) {
+    const physicalKey = physicalKeyByTrackKey.get(track.trackKey) ?? `track:${track.trackKey}`;
+    const sharedLibraryTrackId = libraryTrackByPhysicalKey.get(physicalKey);
     const rankedCandidates = candidates
       .map((candidate) => {
         const albumScore = scoreMusicTitleMatch(entry.title, candidate.album);
         const titleScore = scoreMusicTitleMatch(track.title, candidate.title);
-        return { candidate, albumScore, titleScore, score: (albumScore * 0.6) + (titleScore * 0.4) };
+        const trackNumberMatches = track.sequenceNumber !== undefined && candidate.trackNumber === track.sequenceNumber;
+        return { candidate, albumScore, titleScore, trackNumberMatches, score: (albumScore * 0.5) + (titleScore * 0.4) + (trackNumberMatches ? 0.1 : 0) };
       })
-      .filter((candidate) => (mappedCandidates.length ? candidate.titleScore >= 0.75 : candidate.albumScore >= 0.55 && candidate.titleScore >= 0.75))
-      .filter((candidate) => !usedLibraryTrackIds.has(candidate.candidate.id) || previousMatchByKey.get(track.trackKey) === candidate.candidate.id)
-      .sort((left, right) => right.score - left.score || right.albumScore - left.albumScore || right.titleScore - left.titleScore);
-    const libraryTrack = rankedCandidates[0]?.candidate;
+      .filter((candidate) => (mappedCandidates.length
+        ? candidate.titleScore >= 0.75 || candidate.trackNumberMatches && candidate.titleScore >= 0.55
+        : candidate.albumScore >= 0.55 && (candidate.titleScore >= 0.75 || candidate.trackNumberMatches && candidate.titleScore >= 0.55)))
+      .filter((candidate) => !usedLibraryTrackIds.has(candidate.candidate.id)
+        || previousMatchByKey.get(track.trackKey) === candidate.candidate.id
+        || sharedLibraryTrackId === candidate.candidate.id)
+      .sort((left, right) => right.score - left.score || Number(right.trackNumberMatches) - Number(left.trackNumberMatches) || right.titleScore - left.titleScore);
+    const libraryTrack = rankedCandidates.find(({ candidate }) => candidate.id === sharedLibraryTrackId)?.candidate ?? rankedCandidates[0]?.candidate;
     if (!libraryTrack) continue;
     usedLibraryTrackIds.add(libraryTrack.id);
+    libraryTrackByPhysicalKey.set(physicalKey, libraryTrack.id);
     savedMatches.push(await prisma.personalTrackMatch.upsert({
       where: { cdEntryId_trackKey: { cdEntryId, trackKey: track.trackKey } },
       create: { cdEntryId, trackKey: track.trackKey, libraryTrackId: libraryTrack.id },
@@ -1452,15 +1473,21 @@ app.patch('/api/cds/:id', async (req, res) => {
     }
   }
 
-  const updated = await prisma.cdEntry.update({
-    where: { id: entryId },
-    data: {
+  const releaseChanged = existing.discogsId !== discogsId;
+  const updated = await prisma.$transaction(async (transaction) => {
+    if (releaseChanged) {
+      await transaction.personalTrackMatch.deleteMany({ where: { cdEntryId: entryId } });
+      await transaction.youTubeTrackMatch.deleteMany({ where: { cdEntryId: entryId } });
+    }
+    return transaction.cdEntry.update({
+      where: { id: entryId },
+      data: {
       title, artist: normalizedArtist, artistSortName: catalogArtistSortName(normalizedArtist), year: year ?? null, country: country ?? null, label: releaseLabel, format: format ?? null,
       discogsId, discogsUri: discogsUri ?? null, catalogNumber: releaseCatalogNumber, barcode: releaseBarcode, mediaCondition: normalizedMediaCondition,
       estimatedValue, valueLastCheckedAt, notes: notes ?? null,
       estimatedValueIsManual: hasManualEstimatedValue,
       estimatedValueReviewedAt: hasManualEstimatedValue ? new Date() : null,
-      ...(existing.discogsId !== discogsId ? {
+      ...(releaseChanged ? {
         discogsCollectionSyncStatus: 'NOT_SYNCED',
         discogsCollectionInstanceId: null,
         discogsCollectionSyncedAt: null,
@@ -1477,8 +1504,9 @@ app.patch('/api/cds/:id', async (req, res) => {
         discogsMarketHigh: null,
         discogsMarketCurrency: null,
         discogsMarketStatsCheckedAt: null,
-      } : {}),
-    },
+        } : {}),
+      },
+    });
   });
   let hasCover = Boolean(updated.coverImageData && updated.coverImageMimeType);
   if (!hasCover || existing.discogsId !== discogsId) {

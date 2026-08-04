@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { artistSearchFallbacks, scoreMusicTextMatch, scoreMusicTitleMatch, shortenedArtistSearch } from './music-library.js';
+import { artistSearchFallbacks, scoreMusicEditSimilarity, scoreMusicTextMatch, scoreMusicTitleMatch, shortenedArtistSearch } from './music-library.js';
 
 test('scoreMusicTitleMatch Accepts Small Spelling and Filename-Prefix Differences', () => {
   assert.equal(scoreMusicTitleMatch('Rock Rock (Till You Drop)', "01 Def Leppard - Rock Rock (Til' You Drop)"), 0.95);
@@ -19,7 +19,19 @@ test('scoreMusicTitleMatch Recognizes Equivalent Part and Volume Notation Withou
 });
 
 test('scoreMusicTitleMatch Accepts Close Album Spelling When the Core Words Align', () => {
-  assert.equal(scoreMusicTitleMatch('Just Sumthin To Do', "Just Somethin' To Do"), 2 / 3);
+  assert.ok(scoreMusicTitleMatch('Just Sumthin To Do', "Just Somethin' To Do") >= 0.78);
+});
+
+test('scoreMusicTitleMatch Soft-Matches Punctuation, Accents, Sequence Numbers, And Minor Typos', () => {
+  assert.equal(scoreMusicTitleMatch('7. Acquiescence', '07 - Acquiesence'), 11 / 12);
+  assert.equal(scoreMusicTitleMatch('Déjà Vu!', 'Deja-Vu'), 1);
+  assert.ok(scoreMusicTitleMatch('Whispers On The Wind', 'Whisper on Wind') >= 0.78);
+  assert.ok(scoreMusicTitleMatch('7. Acquiescence', 'The Ivory Gate of Dreams : Vii. Aquiesence') >= 0.78);
+});
+
+test('scoreMusicEditSimilarity Rejects Unrelated Titles And Very Short Names', () => {
+  assert.ok(scoreMusicEditSimilarity('Acquiescence', 'Anarchy Devine') < 0.5);
+  assert.equal(scoreMusicEditSimilarity('One', 'Ode'), 0);
 });
 
 test('scoreMusicTextMatch Treats Low-Value Words Such as the as Optional', () => {

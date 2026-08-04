@@ -79,7 +79,7 @@ export function useCatalogEditorController({ catalog, detail, search, setActiveP
         setEntryBeingCorrected(null);
         setCollectionRefresh((current) => current + 1);
         setStatus(wasCorrection
-          ? (created.estimatedValue != null ? 'Discogs match corrected with a refreshed value.' : 'Discogs match corrected. The old valuation was cleared.')
+          ? (created.estimatedValue != null ? 'Discogs release changed with a refreshed value. Sync personal locations for the new tracklist.' : 'Discogs release changed. Sync personal locations for the new tracklist.')
           : (created.estimatedValue != null ? 'CD saved with a fresh Discogs value.' : 'CD saved locally.'));
       } else {
         const error = await res.json().catch(() => ({ error: 'Unable to save this CD.' }));
@@ -116,7 +116,7 @@ export function useCatalogEditorController({ catalog, detail, search, setActiveP
     setReleaseCatalogInfoStatus('');
     setHasSearched(false);
     setCurrentPage(1);
-    setStatus('Search again, select the correct Discogs release, then apply the correction.');
+    setStatus('Search for the edition you own, compare its country, year, label, catalog number, barcode, and tracklist, then select it and apply the change.');
     window.setTimeout(() => document.querySelector('.search-workspace')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
   }
 

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type {
   DiscogsReleaseTrack,
   PersonalTrackMatch,
@@ -5,6 +6,7 @@ import type {
   YouTubePlayer,
   YouTubeVideoMatch,
 } from '../../types';
+import { sharedPhysicalTrackPosition } from '../../utils/catalog';
 
 type YouTubeCandidates = { track: DiscogsReleaseTrack; videos: YouTubeVideoMatch[] };
 
@@ -57,9 +59,11 @@ export function TracklistDialog({
   onFindYouTubeMatches,
   onSearchYouTube,
 }: TracklistDialogProps) {
+  const [openOptionsTrackKey, setOpenOptionsTrackKey] = useState<string | null>(null);
   return (
     <div className="tracklist-overlay" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
+      else if (event.target instanceof Element && !event.target.closest('.track-options-menu')) setOpenOptionsTrackKey(null);
     }}>
       <section className="tracklist-popover" role="dialog" aria-modal="true" aria-label={`Tracklist for ${albumTitle}`}>
         <button type="button" className="dialog-close-button dialog-close-sticky" aria-label="Close tracklist" title="Close" onClick={onClose}>×</button>
@@ -110,18 +114,28 @@ export function TracklistDialog({
         ) : null}
         {tracks.length ? <ol className="tracklist">
           {tracks.map((track, index) => {
-            const savedMatch = savedYouTubeMatches.find((match) => match.trackKey === trackKey(track));
-            const personalMatch = personalTrackMatches.find((match) => match.trackKey === trackKey(track));
+            const currentTrackKey = trackKey(track);
+            const savedMatch = savedYouTubeMatches.find((match) => match.trackKey === currentTrackKey);
+            const personalMatch = personalTrackMatches.find((match) => match.trackKey === currentTrackKey);
+            const sharedPosition = sharedPhysicalTrackPosition(tracks, track);
+            const sharesLocalFile = Boolean(personalMatch && personalTrackMatches.some((match) => match.trackKey !== personalMatch.trackKey
+              && match.libraryTrack.id === personalMatch.libraryTrack.id));
             return (
               <li key={`${track.position ?? index}-${track.title}`}>
                 <span className="track-position">{track.position || index + 1}</span>
                 <span className="track-title">{track.title}</span>
                 {track.duration ? <span className="track-duration">{track.duration}</span> : null}
+                {sharedPosition && sharesLocalFile ? <span className="track-suite-note">Part of physical track {sharedPosition} — shares one local audio file</span> : null}
                 {track.isComposite ? <span className="track-suite-note">Suite — individual movements are listed below</span> : <div className="track-actions">
-                  <button type="button" onClick={() => personalMatch ? onPlayPersonalCopy(personalMatch) : onFindPersonalCopy(track)}>{personalMatch ? 'Play Local Copy' : 'Find Personal Copy'}</button>
-                  {savedMatch ? <button type="button" onClick={() => onPlaySavedMatch(savedMatch)}>Play Saved Match</button> : null}
-                  <button type="button" className="secondary-button" onClick={() => onFindYouTubeMatches(track)}>{savedMatch ? 'Change Match' : 'Find Matches'}</button>
-                  <button type="button" className="secondary-button" onClick={() => onSearchYouTube(track)}>Search</button>
+                  <button type="button" className="track-local-action" onClick={() => personalMatch ? onPlayPersonalCopy(personalMatch) : onFindPersonalCopy(track)}>{personalMatch ? '▶ Play' : 'Find Local'}</button>
+                  <div className="track-options-menu">
+                    <button type="button" className="track-options-trigger" aria-label={`More options for ${track.title}`} aria-expanded={openOptionsTrackKey === currentTrackKey} title="More track options" onClick={() => setOpenOptionsTrackKey((openKey) => openKey === currentTrackKey ? null : currentTrackKey)}>•••</button>
+                    {openOptionsTrackKey === currentTrackKey ? <div className="track-options-items">
+                      {savedMatch ? <button type="button" onClick={() => { setOpenOptionsTrackKey(null); onPlaySavedMatch(savedMatch); }}>Play Saved Match</button> : null}
+                      <button type="button" onClick={() => { setOpenOptionsTrackKey(null); onFindYouTubeMatches(track); }}>{savedMatch ? 'Change YouTube Match' : 'Find YouTube Matches'}</button>
+                      <button type="button" onClick={() => { setOpenOptionsTrackKey(null); onSearchYouTube(track); }}>Search YouTube</button>
+                    </div> : null}
+                  </div>
                 </div>}
               </li>
             );

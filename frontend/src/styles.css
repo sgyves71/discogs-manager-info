@@ -722,9 +722,60 @@ button:disabled {
 
 .track-actions {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: 0.35rem;
+}
+
+.tracklist .track-local-action {
+  min-width: 72px;
+  white-space: nowrap;
+}
+
+.track-options-menu {
+  position: relative;
+}
+
+.tracklist .track-options-trigger {
+  width: 32px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid #64717c;
+  background: #333b43;
+  color: #e8edf2;
+  letter-spacing: 1px;
+}
+
+.tracklist .track-options-trigger[aria-expanded='true'] {
+  border-color: #80c4e8;
+  background: #3f708d;
+}
+
+.track-options-items {
+  position: absolute;
+  z-index: 45;
+  top: calc(100% + 0.3rem);
+  right: 0;
+  display: grid;
+  width: 190px;
+  gap: 0.35rem;
+  padding: 0.45rem;
+  border: 1px solid #62717c;
+  border-radius: 8px;
+  background: #252c33;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.4);
+}
+
+.tracklist .track-options-items button {
+  width: 100%;
+  background: transparent;
+  color: #e8edf2;
+  text-align: left;
+  white-space: normal;
+}
+
+.tracklist .track-options-items button:hover {
+  background: #3a4650;
 }
 
 .youtube-candidate-panel {

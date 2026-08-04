@@ -52,7 +52,12 @@ function canonicalizeAlbumQualifiers(value: string): string {
 }
 
 function stripTrackSequencePrefix(value: string): string {
-  return value.replace(/^\s*(?:\d+|[ivxlcdm]+)[.)]\s*/iu, '');
+  return value.replace(/^\s*(?:\d+|[ivxlcdm]+)\s*[.)_:-]\s*/iu, '');
+}
+
+function stripSuiteTitlePrefix(value: string): string {
+  const suiteSeparator = /^.+?\s+:\s+(.+)$/u.exec(value);
+  return stripTrackSequencePrefix(suiteSeparator?.[1] ?? value);
 }
 
 export function normalizeMusicText(value: string): string {
@@ -84,6 +89,32 @@ function significantMusicTokens(value: string): string[] {
   return meaningfulTokens.length ? meaningfulTokens : tokens;
 }
 
+function editDistance(left: string, right: string): number {
+  if (!left) return right.length;
+  if (!right) return left.length;
+  let previous = Array.from({ length: right.length + 1 }, (_value, index) => index);
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    const current = [leftIndex];
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      current[rightIndex] = Math.min(
+        (current[rightIndex - 1] ?? 0) + 1,
+        (previous[rightIndex] ?? 0) + 1,
+        (previous[rightIndex - 1] ?? 0) + (left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1),
+      );
+    }
+    previous = current;
+  }
+  return previous[right.length] ?? Math.max(left.length, right.length);
+}
+
+export function scoreMusicEditSimilarity(requestedTitle: string, candidateTitle: string): number {
+  const requested = normalizeMusicText(stripSuiteTitlePrefix(requestedTitle));
+  const candidate = normalizeMusicText(stripSuiteTitlePrefix(candidateTitle));
+  const longestLength = Math.max(requested.length, candidate.length);
+  if (longestLength < 5) return 0;
+  return 1 - (editDistance(requested, candidate) / longestLength);
+}
+
 export function scoreMusicTextMatch(requestedTitle: string, candidateTitle: string): number {
   const requested = normalizeMusicText(requestedTitle);
   const candidate = normalizeMusicText(candidateTitle);
@@ -93,6 +124,9 @@ export function scoreMusicTextMatch(requestedTitle: string, candidateTitle: stri
   const relaxedRequested = requested.replace(/(.)\1+/gu, '$1');
   const relaxedCandidate = candidate.replace(/(.)\1+/gu, '$1');
   if (relaxedCandidate.includes(relaxedRequested) || relaxedRequested.includes(relaxedCandidate)) return 0.95;
+
+  const editSimilarity = scoreMusicEditSimilarity(requestedTitle, candidateTitle);
+  if (editSimilarity >= 0.78) return editSimilarity;
 
   const requestedTokens = new Set(significantMusicTokens(requestedTitle));
   const candidateTokens = new Set(significantMusicTokens(candidateTitle));
@@ -105,8 +139,8 @@ export function scoreMusicTextMatch(requestedTitle: string, candidateTitle: stri
 }
 
 export function scoreMusicTitleMatch(requestedTitle: string, candidateTitle: string): number {
-  const cleanedRequestedTitle = stripTrackSequencePrefix(requestedTitle);
-  const cleanedCandidateTitle = stripTrackSequencePrefix(candidateTitle);
+  const cleanedRequestedTitle = stripSuiteTitlePrefix(requestedTitle);
+  const cleanedCandidateTitle = stripSuiteTitlePrefix(candidateTitle);
   const requestedQualifiers = albumQualifiers(cleanedRequestedTitle);
   const candidateQualifiers = albumQualifiers(cleanedCandidateTitle);
   // A requested part/volume/disc must not silently fall back to an unqualified

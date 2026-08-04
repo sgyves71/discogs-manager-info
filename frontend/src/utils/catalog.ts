@@ -37,6 +37,18 @@ export function cleanExternalSearchText(value: string): string {
 
 export const trackKey = (track: DiscogsReleaseTrack): string => `${track.position || ''}|${track.title}`;
 
+export function sharedPhysicalTrackPosition(tracks: DiscogsReleaseTrack[], track: DiscogsReleaseTrack): string | null {
+  const position = track.position?.trim() ?? '';
+  const match = /^(.*\d)([a-z])$/iu.exec(position);
+  if (!match?.[1]) return null;
+  const stem = match[1].toLocaleLowerCase();
+  const siblingCount = tracks.filter((candidate) => {
+    const candidateMatch = /^(.*\d)([a-z])$/iu.exec(candidate.position?.trim() ?? '');
+    return candidateMatch?.[1]?.toLocaleLowerCase() === stem;
+  }).length;
+  return siblingCount > 1 ? match[1] : null;
+}
+
 export function trackDurationSeconds(duration: string | null): number | null {
   if (!duration) return null;
   const parts = duration.split(':').map(Number);

@@ -45,8 +45,8 @@ export function SelectedReleaseEditor({ panelRef, release, context, title, artis
         <label>Media Condition</label><select value={mediaCondition} onChange={(event) => onMediaConditionChange(event.target.value)}><option value="">Not specified</option>{mediaConditions.map((condition) => <option key={condition} value={condition}>{condition}</option>)}</select>
         <label>Estimated Value</label><input type="number" min="0" step="0.01" value={estimatedValue} onChange={(event) => onEstimatedValueChange(event.target.value)} placeholder="15.00" />
         {status ? <p className="status">{status}</p> : null}
-        {correcting ? <div className="form-actions"><button type="button" className="secondary-button" onClick={onCancelCorrection}>Cancel Correction</button></div> : null}
-        <div className="form-actions"><button type="submit" disabled={saving}>{correcting ? 'Apply Corrected Match' : 'Add to Catalog'}</button></div>
+        {correcting ? <div className="form-actions"><button type="button" className="secondary-button" onClick={onCancelCorrection}>Cancel Release Change</button></div> : null}
+        <div className="form-actions"><button type="submit" disabled={saving}>{correcting ? 'Apply Release Change' : 'Add to Catalog'}</button></div>
       </form>
     </> : <p className="hint">Select a release result to review it and add it to your catalog.</p>}
   </aside>;
