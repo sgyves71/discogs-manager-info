@@ -1,4 +1,4 @@
-import type { DiscogsCollectionSyncInfo, MarketStatsBackfill, MusicLibraryInfo } from '../types';
+import type { DiscogsCollectionSyncInfo, MarketStatsBackfill, MusicLibraryInfo } from '../../types';
 
 type MusicLibraryPageProps = {
   library: MusicLibraryInfo | null;

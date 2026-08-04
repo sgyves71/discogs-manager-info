@@ -1,4 +1,4 @@
-import { ModalDialog } from './ModalDialog';
+import { ModalDialog } from '../shared/ModalDialog';
 
 export function PersonalMatchNotFoundDialog({ title, onManualMatch, onClose }: { title: string; onManualMatch: () => void; onClose: () => void }) {
   return <ModalDialog label="Personal music match not found" onClose={onClose}>

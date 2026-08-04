@@ -1,10 +1,4 @@
-export type CatalogStatistics = {
-  totalEntries: number;
-  discogsMedian: { count: number; total: number };
-  estimatedValue: { count: number; total: number };
-  styles: Array<{ style: string; count: number; percentage: number }>;
-  decades: Array<{ decade: string; count: number; percentage: number }>;
-};
+import type { CatalogStatistics } from '../../types';
 
 type CatalogStatisticsPageProps = {
   statistics: CatalogStatistics | null;

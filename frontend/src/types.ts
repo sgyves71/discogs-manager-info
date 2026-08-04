@@ -70,3 +70,83 @@ export type DiscogsCollectionSyncInfo = {
   pending: number;
   sync: DiscogsCollectionSync;
 };
+
+export type DiscogsReleaseTrack = {
+  position: string | null;
+  title: string;
+  duration: string | null;
+  isComposite?: boolean;
+};
+
+export type YouTubeVideoMatch = {
+  videoId: string;
+  title: string;
+  channelTitle: string | null;
+  thumbnailUrl: string | null;
+  watchUrl: string;
+  embedUrl: string;
+  durationSeconds: number | null;
+  score: number;
+};
+
+export type SavedYouTubeTrackMatch = {
+  trackKey: string;
+  videoId: string;
+  videoTitle: string;
+  videoUrl: string;
+};
+
+export type YouTubePlayer = {
+  videoId: string;
+  title: string;
+  watchUrl: string;
+};
+
+export type PersonalTrackMatch = {
+  trackKey: string;
+  libraryTrack: {
+    id: number;
+    artist: string;
+    album: string;
+    title: string;
+    trackNumber: number | null;
+    format: string | null;
+  };
+};
+
+export type CatalogDetailsForm = {
+  title: string;
+  artist: string;
+  year: string;
+  country: string;
+  label: string;
+  format: string;
+  catalogNumber: string;
+  barcode: string;
+  mediaCondition: string;
+  notes: string;
+};
+
+export type CatalogStatistics = {
+  totalEntries: number;
+  discogsMedian: { count: number; total: number };
+  estimatedValue: { count: number; total: number };
+  styles: Array<{ style: string; count: number; percentage: number }>;
+  decades: Array<{ decade: string; count: number; percentage: number }>;
+};
+
+export type DiscogsResult = {
+  id: number;
+  title: string;
+  artist: string;
+  year: number | null;
+  country: string | null;
+  label: string | null;
+  format: string;
+  uri: string;
+  thumb: string | null;
+  coverImage: string | null;
+  catalogNumber: string | null;
+  barcode: string | null;
+  lowestPrice: number | null;
+};

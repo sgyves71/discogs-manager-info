@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import type { CdEntry } from '../types';
+import type { CdEntry } from '../../types';
 
 type CatalogPageProps = {
   items: CdEntry[];
