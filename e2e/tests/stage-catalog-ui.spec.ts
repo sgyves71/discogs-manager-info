@@ -53,7 +53,7 @@ test.describe('Stage Catalog User Interface', () => {
         totalEntries: 100,
         discogsMedian: { count: 72, total: 1834.5 },
         estimatedValue: { count: 100, total: 2100 },
-        genres: [{ genre: 'Rock', count: 78, percentage: 78 }, { genre: 'Electronic', count: 22, percentage: 22 }],
+        styles: [{ style: 'Heavy Metal', count: 78, percentage: 78 }, { style: 'Hard Rock', count: 22, percentage: 22 }],
       }),
     }));
     await page.goto('/');
@@ -62,8 +62,8 @@ test.describe('Stage Catalog User Interface', () => {
     await expect(page.getByText('$1,834.50', { exact: true })).toBeVisible();
     await expect(page.getByText('72 releases with a known Discogs median', { exact: true })).toBeVisible();
     await expect(page.getByText('$2,100.00', { exact: true })).toBeVisible();
-    await expect(page.getByRole('img', { name: 'Genre distribution pie chart' })).toBeVisible();
-    await expect(page.getByText('Rock', { exact: true })).toBeVisible();
+    await expect(page.getByRole('img', { name: 'Style distribution pie chart' })).toBeVisible();
+    await expect(page.getByText('Heavy Metal', { exact: true })).toBeVisible();
     await expect(page.getByText('78.0% · 78 CDs', { exact: true })).toBeVisible();
   });
 
