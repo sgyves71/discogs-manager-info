@@ -6,6 +6,7 @@ import { CatalogStatisticsPage, type CatalogStatistics } from './components/Cata
 import { LocalAudioPlayer } from './components/LocalAudioPlayer';
 import { MusicLibraryPage } from './components/MusicLibraryPage';
 import { SearchScanControls } from './components/SearchScanControls';
+import { SearchResultsList } from './components/SearchResultsList';
 import type { CdEntry, DiscogsCollectionSync, DiscogsCollectionSyncInfo, MarketStatsBackfill, MusicLibraryInfo } from './types';
 
 type CatalogDetailsForm = {
@@ -1731,100 +1732,24 @@ function App() {
                 </select>
               </label>
             </div>
-            <div className="results-list">
-            {visibleResults.map((release) => {
-                const coverArt = release.coverImage || coverImages[release.id] || release.thumb;
-
-              return (
-              <div
-                key={release.id}
-                role="button"
-                tabIndex={0}
-                className={`result-card ${selectedRelease?.id === release.id ? 'selected' : ''}`}
-                onClick={() => { void selectSearchResult(release); }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    void selectSearchResult(release);
-                  }
-                }}
-              >
-                <div className="result-cover-column">
-                  {coverArt ? (
-                    <img className="cover-thumbnail" src={coverArt} alt={`Cover art for ${release.title}`} />
-                  ) : (
-                    <div className="cover-placeholder" aria-label="No cover art available">No cover art</div>
-                  )}
-                  {selectedRelease?.id === release.id ? <button type="button" className="edit-add-button" onClick={(event) => { event.stopPropagation(); openSelectedReleaseEditor(); }}>Edit &amp; Add</button> : null}
-                </div>
-                <div className="result-content">
-                  <strong className="result-artist">{release.artist || 'Unknown artist'}</strong>
-                  <div className="result-title">{release.title || 'Untitled release'}</div>
-                  <div className="result-details">
-                    <div><strong>Release Year:</strong> {release.year ?? 'Unknown'}</div>
-                    <div><strong>{selectedRelease?.id === release.id ? 'Release Label:' : 'Search-Result Label:'}</strong> {release.label ?? 'Unknown'}</div>
-                    <div><strong>Country:</strong> {release.country ?? 'Unknown'}</div>
-                    <div><strong>Catalog Number:</strong> {release.catalogNumber ?? 'Not listed'}</div>
-                    {release.barcode ? <div><strong>Barcode:</strong> {release.barcode}</div> : null}
-                    <div><strong>Format:</strong> {release.format || 'Unknown'}</div>
-                    {selectedRelease?.id === release.id && releaseContext?.genre ? <div><strong>Genre:</strong> {releaseContext.genre}</div> : null}
-                    {selectedRelease?.id === release.id && releaseContext?.style ? <div><strong>Style:</strong> {releaseContext.style}</div> : null}
-                  </div>
-                  {selectedRelease?.id === release.id && (
-                    <>
-                      {releaseCatalogInfoStatus ? <p className="hint">{releaseCatalogInfoStatus}</p> : null}
-                      {includeDiscogsMarketStats && <div className="price-suggestions" aria-live="polite">
-                        <strong>Discogs Market Statistics:</strong>
-                        {discogsSearchMarketStatsStatus ? <div>{discogsSearchMarketStatsStatus}</div> : null}
-                        {discogsSearchMarketStats && (discogsSearchMarketStats.low != null || discogsSearchMarketStats.median != null || discogsSearchMarketStats.high != null) ? <div>
-                          <strong>Low / Median / High:</strong>{' '}
-                          {formatDiscogsMarketPrice(discogsSearchMarketStats.low, discogsSearchMarketStats.currency)} /{' '}
-                          {formatDiscogsMarketPrice(discogsSearchMarketStats.median, discogsSearchMarketStats.currency)} /{' '}
-                          {formatDiscogsMarketPrice(discogsSearchMarketStats.high, discogsSearchMarketStats.currency)}
-                        </div> : null}
-                      </div>}
-                      {includeEbayAuctionValues && <div className="price-suggestions" aria-live="polite">
-                        <strong>eBay Active Listings:</strong>
-                        {ebayListingStatus ? <div>{ebayListingStatus}</div> : null}
-                        {ebayListingStats?.sampledListingCount ? (
-                          <div className={`ebay-listing-results ${ebayListingStats.searchMethod}`}>
-                            <div><strong>Matching Listings:</strong> {ebayListingStats.listingCount}</div>
-                            <div className={`ebay-search-method ${ebayListingStats.searchMethod}`}><strong>Search Used:</strong>{' '}
-                              {ebayListingStats.searchMethod === 'catalogNumber' ? 'Discogs catalog number' : 'artist and album title'}
-                            </div>
-                            <div><strong>Priced Sample:</strong> {ebayListingStats.sampledListingCount} active listings</div>
-                            <div><strong>Low / Average / High:</strong>{' '}
-                              {ebayListingStats.currency || '$'} {ebayListingStats.lowestPrice?.toFixed(2)} /{' '}
-                              {ebayListingStats.averagePrice?.toFixed(2)} / {ebayListingStats.highestPrice?.toFixed(2)}
-                            </div>
-                          </div>
-                        ) : null}
-                        {ebayListingStats ? <div className="price-note">Current asking prices only; not eBay sold-price history.</div> : null}
-                      </div>}
-                      <div className="release-context-card" aria-live="polite">
-                        {releaseContextStatus ? <p>{releaseContextStatus}</p> : null}
-                        {releaseContext && releaseContext.descriptionSource !== 'artist' && (
-                          <>
-                            <div>
-                              <strong>
-                                {releaseContext.descriptionSource === 'release'
-                                  ? 'Release Notes'
-                                  : releaseContext.descriptionSource === 'album'
-                                    ? 'Album Notes'
-                                    : 'Discogs Information'}
-                              </strong>
-                              <p>{releaseContext.description ? formatDiscogsText(releaseContext.description) : 'Discogs does not provide release or album notes for this selection.'}</p>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-              );
-            })}
-            </div>
+            <SearchResultsList
+              releases={visibleResults}
+              selectedRelease={selectedRelease}
+              coverImages={coverImages}
+              releaseContext={releaseContext}
+              releaseContextStatus={releaseContextStatus}
+              releaseCatalogInfoStatus={releaseCatalogInfoStatus}
+              includeDiscogsMarketStats={includeDiscogsMarketStats}
+              discogsMarketStats={discogsSearchMarketStats}
+              discogsMarketStatsStatus={discogsSearchMarketStatsStatus}
+              includeEbayAuctionValues={includeEbayAuctionValues}
+              ebayListingStats={ebayListingStats}
+              ebayListingStatus={ebayListingStatus}
+              onSelect={(release) => void selectSearchResult(release as DiscogsResult)}
+              onEditAndAdd={openSelectedReleaseEditor}
+              formatDiscogsText={formatDiscogsText}
+              formatPrice={formatDiscogsMarketPrice}
+            />
           </>
         )}
 
