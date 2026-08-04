@@ -5,6 +5,7 @@ import { CatalogPage } from './components/CatalogPage';
 import { CatalogStatisticsPage, type CatalogStatistics } from './components/CatalogStatisticsPage';
 import { LocalAudioPlayer } from './components/LocalAudioPlayer';
 import { MusicLibraryPage } from './components/MusicLibraryPage';
+import { SearchScanControls } from './components/SearchScanControls';
 import type { CdEntry, DiscogsCollectionSync, DiscogsCollectionSyncInfo, MarketStatsBackfill, MusicLibraryInfo } from './types';
 
 type CatalogDetailsForm = {
@@ -1678,83 +1679,35 @@ function App() {
         <h2>{entryBeingCorrected ? 'Correct Discogs match' : 'Add a CD'}</h2>
         {entryBeingCorrected ? <p className="hint">Correcting <strong>{entryBeingCorrected.artist} — {entryBeingCorrected.title}</strong>. Your notes and condition are retained; valuation is refreshed or cleared.</p> : null}
 
-        <label>Search Discogs</label>
-        <form
-          className="search-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void handleSearch();
+        <SearchScanControls
+          artist={searchArtist}
+          albumTitle={searchAlbumTitle}
+          catalogNumber={searchCatalogNumber}
+          barcode={searchBarcode}
+          loading={loading}
+          includeDiscogsMarketStats={includeDiscogsMarketStats}
+          includeEbayAuctionValues={includeEbayAuctionValues}
+          voiceListening={catalogVoiceListening}
+          voiceStatus={catalogVoiceStatus}
+          scannerOpen={scannerOpen}
+          scannerStatus={scannerStatus}
+          scannerVideoRef={scannerVideoRef}
+          onFieldChange={(field, value) => {
+            if (field === 'artist') setSearchArtist(value);
+            if (field === 'albumTitle') setSearchAlbumTitle(value);
+            if (field === 'catalogNumber') setSearchCatalogNumber(value);
+            if (field === 'barcode') setSearchBarcode(value);
+            setHasSearched(false);
+            setCurrentPage(1);
           }}
-        >
-          <div className="search-input-grid">
-            <input
-              value={searchArtist}
-              onChange={(e) => {
-                setSearchArtist(e.target.value);
-                setHasSearched(false);
-                setCurrentPage(1);
-              }}
-              placeholder="Artist"
-            />
-            <input
-              value={searchAlbumTitle}
-              onChange={(e) => {
-                setSearchAlbumTitle(e.target.value);
-                setHasSearched(false);
-                setCurrentPage(1);
-              }}
-              placeholder="Album Title"
-            />
-            <div className="catalog-number-voice-input">
-              <input
-                value={searchCatalogNumber}
-                onChange={(e) => {
-                  setSearchCatalogNumber(e.target.value);
-                  setHasSearched(false);
-                  setCurrentPage(1);
-                }}
-                placeholder="Catalog Number"
-                aria-label="Catalog Number"
-              />
-              <button type="button" className="secondary-button catalog-voice-button" onClick={catalogVoiceListening ? stopCatalogNumberVoiceEntry : startCatalogNumberVoiceEntry} aria-label={catalogVoiceListening ? 'Stop catalog number voice entry' : 'Speak catalog number'} title={catalogVoiceListening ? 'Stop listening' : 'Speak catalog number'}>
-                {catalogVoiceListening ? 'Stop Listening' : '🎙 Speak'}
-              </button>
-            </div>
-            <input
-              value={searchBarcode}
-              onChange={(e) => {
-                setSearchBarcode(e.target.value);
-                setHasSearched(false);
-                setCurrentPage(1);
-              }}
-              placeholder="Barcode"
-            />
-          </div>
-          <div className="search-actions">
-            <button type="submit" disabled={loading || (!searchArtist.trim() && !searchAlbumTitle.trim() && !searchCatalogNumber.trim() && !searchBarcode.trim())}>{loading ? 'Searching...' : 'Look Up'}</button>
-            <button type="button" className="secondary-button" onClick={clearSearch} disabled={loading}>Clear</button>
-            <label className="ebay-search-toggle"><input type="checkbox" checked={includeDiscogsMarketStats} onChange={(event) => setIncludeDiscogsMarketStats(event.target.checked)} /> Include Discogs Market Statistics</label>
-            <label className="ebay-search-toggle"><input type="checkbox" checked={includeEbayAuctionValues} onChange={(event) => setIncludeEbayAuctionValues(event.target.checked)} /> Include Current eBay Auction Values</label>
-          </div>
-          {catalogVoiceStatus ? <p className="hint catalog-voice-status" aria-live="polite">{catalogVoiceStatus}</p> : null}
-        </form>
-
-        <div className="search-section-divider" />
-        <section className="scanner-section">
-          <h3>Barcode scanner</h3>
-          <p className="hint">Use your phone camera to fill the barcode search field automatically.</p>
-          <button type="button" onClick={() => { setScannerStatus('Opening camera...'); setScannerOpen(true); }}>
-            Scan Barcode
-          </button>
-        </section>
-
-        {scannerOpen && (
-          <div className="scanner-dialog" role="dialog" aria-modal="true" aria-label="Barcode scanner">
-            <button type="button" className="dialog-close-button scanner-close" aria-label="Close barcode scanner" title="Close" onClick={() => setScannerOpen(false)}>×</button>
-            <video ref={scannerVideoRef} className="scanner-video" muted playsInline />
-            <p>{scannerStatus}</p>
-          </div>
-        )}
+          onSearch={() => void handleSearch()}
+          onClear={clearSearch}
+          onIncludeDiscogsMarketStatsChange={setIncludeDiscogsMarketStats}
+          onIncludeEbayAuctionValuesChange={setIncludeEbayAuctionValues}
+          onVoiceToggle={catalogVoiceListening ? stopCatalogNumberVoiceEntry : startCatalogNumberVoiceEntry}
+          onOpenScanner={() => { setScannerStatus('Opening camera...'); setScannerOpen(true); }}
+          onCloseScanner={() => setScannerOpen(false)}
+        />
 
         <p className="hint">{searchSummary}</p>
 
