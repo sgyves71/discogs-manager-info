@@ -137,6 +137,7 @@ type CatalogStatistics = {
   discogsMedian: { count: number; total: number };
   estimatedValue: { count: number; total: number };
   styles: Array<{ style: string; count: number; percentage: number }>;
+  decades: Array<{ decade: string; count: number; percentage: number }>;
 };
 
 type SpeechRecognitionAlternativeLike = { transcript: string };
@@ -1686,38 +1687,48 @@ function App() {
         <>
           <h1>Catalog Statistics</h1>
           <p>Collection totals based on the market values currently stored in your local catalog.</p>
-          <div className="catalog-statistics-grid">
-            <section className="card catalog-statistic-card">
-              <span>Catalog Entries</span>
-              <strong>{catalogStatistics ? catalogStatistics.totalEntries.toLocaleString() : '—'}</strong>
-            </section>
-            <section className="card catalog-statistic-card">
-              <span>Discogs Median Total</span>
-              <strong>{catalogStatistics ? formatDiscogsMarketPrice(catalogStatistics.discogsMedian.total, 'USD') : '—'}</strong>
-              <small>{catalogStatistics ? `${catalogStatistics.discogsMedian.count.toLocaleString()} releases with a known Discogs median` : 'Loading…'}</small>
-            </section>
-            <section className="card catalog-statistic-card">
-              <span>Estimated Value Total</span>
-              <strong>{catalogStatistics ? formatDiscogsMarketPrice(catalogStatistics.estimatedValue.total, 'USD') : '—'}</strong>
-              <small>{catalogStatistics ? `${catalogStatistics.estimatedValue.count.toLocaleString()} releases with an estimated value` : 'Loading…'}</small>
-            </section>
-          </div>
-          <section className="card genre-distribution-card">
-            <div>
-              <h2>Style Distribution</h2>
-              <p className="hint">Each style shows the share of catalog CDs carrying that tag. Multi-style releases appear in every applicable style, so percentages may total more than 100%.</p>
+          <details className="card catalog-statistics-section">
+            <summary>Collection Value Overview</summary>
+            <div className="catalog-statistics-section-content">
+              <div className="catalog-statistics-grid">
+                <section className="card catalog-statistic-card"><span>Catalog Entries</span><strong>{catalogStatistics ? catalogStatistics.totalEntries.toLocaleString() : '—'}</strong></section>
+                <section className="card catalog-statistic-card"><span>Discogs Median Total</span><strong>{catalogStatistics ? formatDiscogsMarketPrice(catalogStatistics.discogsMedian.total, 'USD') : '—'}</strong><small>{catalogStatistics ? `${catalogStatistics.discogsMedian.count.toLocaleString()} releases with a known Discogs median` : 'Loading…'}</small></section>
+                <section className="card catalog-statistic-card"><span>Estimated Value Total</span><strong>{catalogStatistics ? formatDiscogsMarketPrice(catalogStatistics.estimatedValue.total, 'USD') : '—'}</strong><small>{catalogStatistics ? `${catalogStatistics.estimatedValue.count.toLocaleString()} releases with an estimated value` : 'Loading…'}</small></section>
+              </div>
             </div>
-            {catalogStatistics ? <div className="style-distribution-content" role="img" aria-label="Style distribution bar chart">
-              <ul className="style-distribution-list">
-                {catalogStatistics.styles.map((style, index) => <li key={style.style}>
-                  <button type="button" className="style-distribution-entry" onClick={() => { collectionLoadInFlightRef.current = false; setCollectionStyle(style.style); setCollectionPage(1); setItems([]); setCollectionTotal(0); setActivePage('catalog'); }} aria-label={`View ${style.style} catalog entries`}>
-                  <div className="style-distribution-label"><span className="genre-legend-swatch" style={{ backgroundColor: STYLE_CHART_COLORS[index % STYLE_CHART_COLORS.length] }} aria-hidden="true" /><strong>{style.style}</strong><span>{style.percentage.toFixed(1)}% · {style.count.toLocaleString()} CDs</span></div>
-                  <div className="style-distribution-bar-track"><span className="style-distribution-bar" style={{ width: `${style.percentage}%`, backgroundColor: STYLE_CHART_COLORS[index % STYLE_CHART_COLORS.length] }} /></div>
-                  </button>
-                </li>)}
-              </ul>
-            </div> : <p className="hint">Loading style distribution…</p>}
-          </section>
+          </details>
+          <details className="card catalog-statistics-section">
+            <summary>Style Distribution</summary>
+            <div className="catalog-statistics-section-content">
+              <p className="hint">Each style shows the share of catalog CDs carrying that tag. Multi-style releases appear in every applicable style, so percentages may total more than 100%.</p>
+              {catalogStatistics ? <div className="style-distribution-content" aria-label="Style distribution">
+                <ul className="style-distribution-list">
+                  {catalogStatistics.styles.map((style, index) => <li key={style.style}>
+                    <button type="button" className="style-distribution-entry" onClick={() => { collectionLoadInFlightRef.current = false; setCollectionStyle(style.style); setCollectionPage(1); setItems([]); setCollectionTotal(0); setActivePage('catalog'); }} aria-label={`View ${style.style} catalog entries`}>
+                      <div className="style-distribution-label"><span className="genre-legend-swatch" style={{ backgroundColor: STYLE_CHART_COLORS[index % STYLE_CHART_COLORS.length] }} aria-hidden="true" /><strong>{style.style}</strong><span>{style.percentage.toFixed(1)}% · {style.count.toLocaleString()} CDs</span></div>
+                      <div className="style-distribution-bar-track"><span className="style-distribution-bar" style={{ width: `${style.percentage}%`, backgroundColor: STYLE_CHART_COLORS[index % STYLE_CHART_COLORS.length] }} /></div>
+                    </button>
+                  </li>)}
+                </ul>
+              </div> : <p className="hint">Loading style distribution…</p>}
+            </div>
+          </details>
+          <details className="card catalog-statistics-section">
+            <summary>Decade Distribution</summary>
+            <div className="catalog-statistics-section-content">
+              <p className="hint">Each catalog entry is counted once using its Discogs release year. Entries without a known year are grouped separately.</p>
+              {catalogStatistics ? <div className="style-distribution-content" aria-label="Decade distribution">
+                <ul className="style-distribution-list">
+                  {catalogStatistics.decades.map((decade, index) => <li key={decade.decade}>
+                    <div className="style-distribution-entry">
+                      <div className="style-distribution-label"><span className="genre-legend-swatch" style={{ backgroundColor: STYLE_CHART_COLORS[index % STYLE_CHART_COLORS.length] }} aria-hidden="true" /><strong>{decade.decade}</strong><span>{decade.percentage.toFixed(1)}% · {decade.count.toLocaleString()} CDs</span></div>
+                      <div className="style-distribution-bar-track"><span className="style-distribution-bar" style={{ width: `${decade.percentage}%`, backgroundColor: STYLE_CHART_COLORS[index % STYLE_CHART_COLORS.length] }} /></div>
+                    </div>
+                  </li>)}
+                </ul>
+              </div> : <p className="hint">Loading decade distribution…</p>}
+            </div>
+          </details>
           {catalogStatisticsStatus ? <p className="hint">{catalogStatisticsStatus}</p> : null}
         </>
       )}

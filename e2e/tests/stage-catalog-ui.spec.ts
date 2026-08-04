@@ -55,19 +55,25 @@ test.describe('Stage Catalog User Interface', () => {
         discogsMedian: { count: 72, total: 1834.5 },
         estimatedValue: { count: 100, total: 2100 },
         styles: [{ style: 'Heavy Metal', count: 78, percentage: 78 }, { style: 'Hard Rock', count: 22, percentage: 22 }],
+        decades: [{ decade: '1980s', count: 50, percentage: 50 }, { decade: '1990s', count: 50, percentage: 50 }],
       }),
     }));
     await page.goto('/');
     await page.getByRole('button', { name: 'Catalog Statistics', exact: true }).click();
+    await page.locator('summary', { hasText: 'Collection Value Overview' }).click();
     await expect(page.getByText('Catalog Entries', { exact: true })).toBeVisible();
     await expect(page.getByText('$1,834.50', { exact: true })).toBeVisible();
     await expect(page.getByText('72 releases with a known Discogs median', { exact: true })).toBeVisible();
     await expect(page.getByText('$2,100.00', { exact: true })).toBeVisible();
-    await expect(page.getByRole('img', { name: 'Style distribution bar chart' })).toBeVisible();
+    await page.locator('summary', { hasText: 'Style Distribution' }).click();
     await expect(page.getByText('Heavy Metal', { exact: true })).toBeVisible();
     await expect(page.getByText('78.0% · 78 CDs', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'View Heavy Metal catalog entries' }).click();
     await expect(page.getByRole('combobox', { name: 'Filter Catalog by Style' })).toHaveValue('Heavy Metal');
+    await page.getByRole('button', { name: 'Catalog Statistics', exact: true }).click();
+    await page.locator('summary', { hasText: 'Decade Distribution' }).click();
+    await expect(page.getByText('1980s', { exact: true })).toBeVisible();
+    await expect(page.getByText(/50\.0%.*50 CDs/, { exact: true })).toHaveCount(2);
   });
 
   test('Warns Before Starting a Valuation Update', async ({ page }) => {

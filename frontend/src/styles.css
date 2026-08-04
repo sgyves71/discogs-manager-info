@@ -901,13 +901,29 @@ button:disabled {
   gap: 1rem;
 }
 
-.genre-distribution-card {
+.catalog-statistics-section {
   margin-top: 1rem;
+  padding: 0;
+  overflow: hidden;
 }
 
-.genre-distribution-card h2 {
-  margin: 0;
+.catalog-statistics-section > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.15rem;
+  cursor: pointer;
+  color: #edf2f5;
+  font-size: 1.1rem;
+  font-weight: 700;
+  list-style: none;
 }
+
+.catalog-statistics-section > summary::-webkit-details-marker { display: none; }
+.catalog-statistics-section > summary::after { content: '+'; color: #9bd4ff; font-size: 1.35rem; line-height: 1; }
+.catalog-statistics-section[open] > summary { border-bottom: 1px solid #45545f; }
+.catalog-statistics-section[open] > summary::after { content: '−'; }
+.catalog-statistics-section-content { padding: 1rem 1.15rem 1.15rem; }
 
 .style-distribution-content { margin-top: 1rem; }
 

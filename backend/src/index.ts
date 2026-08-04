@@ -796,7 +796,7 @@ app.get('/api/catalog/statistics', async (_req, res) => {
     prisma.cdEntry.count(),
     prisma.cdEntry.aggregate({ where: { discogsMarketMedian: { not: null } }, _count: { discogsMarketMedian: true }, _sum: { discogsMarketMedian: true } }),
     prisma.cdEntry.aggregate({ where: { estimatedValue: { not: null } }, _count: { estimatedValue: true }, _sum: { estimatedValue: true } }),
-    prisma.cdEntry.findMany({ select: { style: true } }),
+    prisma.cdEntry.findMany({ select: { style: true, year: true } }),
   ]);
   const styleWeights = new Map<string, number>();
   for (const entry of catalogStyles) {
@@ -807,11 +807,23 @@ app.get('/api/catalog/statistics', async (_req, res) => {
   const styles = [...styleWeights.entries()]
     .map(([style, count]) => ({ style, count, percentage: totalEntries ? (count / totalEntries) * 100 : 0 }))
     .sort((left, right) => right.count - left.count || left.style.localeCompare(right.style));
+  const decadeCounts = new Map<string, number>();
+  for (const entry of catalogStyles) {
+    const decade = entry.year && entry.year >= 1000 && entry.year <= 9999
+      ? `${Math.floor(entry.year / 10) * 10}s`
+      : 'Unknown Year';
+    decadeCounts.set(decade, (decadeCounts.get(decade) ?? 0) + 1);
+  }
+  const decades = [...decadeCounts.entries()]
+    .map(([decade, count]) => ({ decade, count, percentage: totalEntries ? (count / totalEntries) * 100 : 0, sortYear: decade === 'Unknown Year' ? Number.POSITIVE_INFINITY : Number.parseInt(decade, 10) }))
+    .sort((left, right) => left.sortYear - right.sortYear)
+    .map(({ sortYear: _sortYear, ...decade }) => decade);
   res.json({
     totalEntries,
     discogsMedian: { count: medianValues._count.discogsMarketMedian, total: medianValues._sum.discogsMarketMedian ?? 0 },
     estimatedValue: { count: estimatedValues._count.estimatedValue, total: estimatedValues._sum.estimatedValue ?? 0 },
     styles,
+    decades,
   });
 });
 
