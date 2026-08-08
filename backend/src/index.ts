@@ -14,8 +14,11 @@ import { CatalogEnrichmentService } from './services/catalog-enrichment-service.
 import { CatalogStatisticsService } from './services/catalog-statistics-service.js';
 import { DiscogsCoverLookupService } from './services/discogs-cover-lookup-service.js';
 import { DiscogsCollectionSyncService } from './services/discogs-collection-sync-service.js';
+import { LocalAlbumArtService } from './services/local-album-art-service.js';
 import { createCatalogStatisticsRouter } from './routes/catalog-statistics-router.js';
 import { createCatalogEnrichmentRouter } from './routes/catalog-enrichment-router.js';
+import { createPlaybackRouter } from './routes/playback-router.js';
+import { PlaybackQueueService } from './services/playback-queue-service.js';
 import { fetchDiscogsMarketStats } from './discogs-market-stats.js';
 import { getStageDiscogsCatalogInfo, getStageDiscogsContext, getStageDiscogsCover, getStageDiscogsImages, getStageDiscogsTracklist, searchStageDiscogsReleases } from './stage-discogs-fixture.js';
 import { getStageMusicBrainzCatalogContext, searchStageMusicBrainz } from './stage-musicbrainz-fixture.js';
@@ -39,6 +42,8 @@ const app = express();
 const prisma = new PrismaClient(process.env.APP_ENV === 'stage'
   ? { datasources: { db: { url: process.env.DATABASE_URL } } }
   : undefined);
+const localAlbumArtService = new LocalAlbumArtService();
+const playbackQueueService = new PlaybackQueueService(prisma);
 const port = process.env.PORT ? Number(process.env.PORT) : 3100;
 const host = process.env.HOST?.trim() || undefined;
 const discogsToken = process.env.DISCOGS_TOKEN?.trim();
@@ -130,18 +135,6 @@ async function findArtistLibraryTracks(libraryId: number, artist: string) {
   return broadCandidates.filter((candidate) => scoreMusicTextMatch(artist, candidate.artist) >= 0.7);
 }
 
-async function findPlaybackAlbumAnchor(entry: { artist: string; title: string; personalAlbumFolderPath: string | null }, libraryId: number) {
-  const mappedFolderPath = entry.personalAlbumFolderPath ? path.resolve(entry.personalAlbumFolderPath) : null;
-  const mappedCandidates = mappedFolderPath
-    ? await prisma.musicLibraryTrack.findMany({ where: { libraryId, filePath: { startsWith: `${mappedFolderPath}${path.sep}` } } })
-    : [];
-  const candidates = mappedCandidates.length ? mappedCandidates : await findArtistLibraryTracks(libraryId, entry.artist);
-  return candidates
-    .map((candidate) => ({ candidate, albumScore: scoreMusicTitleMatch(entry.title, candidate.album) }))
-    .filter(({ albumScore }) => albumScore >= 0.55)
-    .sort((left, right) => right.albumScore - left.albumScore || (left.candidate.trackNumber ?? 0) - (right.candidate.trackNumber ?? 0))[0]?.candidate ?? null;
-}
-
 async function scanCatalogPersonalLocations(libraryId: number) {
   catalogPersonalLocationScanState.status = 'scanning';
   catalogPersonalLocationScanState.processed = 0;
@@ -201,6 +194,13 @@ async function scanMusicLibrary(libraryId: number, rootPath: string) {
   libraryScanState.indexedFiles = 0;
   libraryScanState.skippedFiles = 0;
   libraryScanState.error = null;
+  catalogPersonalLocationScanState.status = 'idle';
+  catalogPersonalLocationScanState.total = 0;
+  catalogPersonalLocationScanState.processed = 0;
+  catalogPersonalLocationScanState.matched = 0;
+  catalogPersonalLocationScanState.alreadyMapped = 0;
+  catalogPersonalLocationScanState.unmatched = 0;
+  catalogPersonalLocationScanState.error = null;
   try {
     await walkAudioFiles(rootPath, async (filePath) => {
       libraryScanState.scannedFiles += 1;
@@ -234,6 +234,7 @@ async function scanMusicLibrary(libraryId: number, rootPath: string) {
     });
     await prisma.musicLibraryTrack.deleteMany({ where: { libraryId, indexedAt: { lt: scanStartedAt } } });
     await prisma.musicLibrary.update({ where: { id: libraryId }, data: { lastScannedAt: new Date() } });
+    await scanCatalogPersonalLocations(libraryId);
     libraryScanState.status = 'complete';
   } catch (error) {
     libraryScanState.status = 'failed';
@@ -243,6 +244,7 @@ async function scanMusicLibrary(libraryId: number, rootPath: string) {
 
 app.use(cors());
 app.use(express.json());
+app.use('/api/music-library/playback', createPlaybackRouter(playbackQueueService));
 app.use('/api/catalog', createCatalogStatisticsRouter(catalogStatistics, prisma));
 app.use('/api', createCatalogEnrichmentRouter(catalogEnrichment, isStageEnvironment));
 
@@ -297,6 +299,10 @@ app.post('/api/music-library/scan', async (_req, res) => {
   }
   if (libraryScanState.status === 'scanning') {
     res.status(409).json({ error: 'A music-library scan is already running.' });
+    return;
+  }
+  if (catalogPersonalLocationScanState.status === 'scanning') {
+    res.status(409).json({ error: 'Wait for catalog local-copy matching to finish before rescanning the music library.' });
     return;
   }
   if (!await isDirectory(library.rootPath)) {
@@ -597,128 +603,6 @@ app.post('/api/cds/:id/personal-track-matches/sync', async (req, res) => {
   res.json({ status: savedMatches.length ? 'matched' : 'notFound', matchedCount: savedMatches.length, unmatchedCount: tracks.length - savedMatches.length, matches });
 });
 
-app.get('/api/music-library/playback/next', async (req, res) => {
-  const cdEntryId = Number(req.query.cdEntryId);
-  const trackId = Number(req.query.trackId);
-  if (!Number.isInteger(cdEntryId) || cdEntryId <= 0 || !Number.isInteger(trackId) || trackId <= 0) {
-    res.status(400).json({ error: 'The current catalog entry and local track are required.' });
-    return;
-  }
-
-  const toPlaybackTrack = (match: { libraryTrack: { id: number; title: string; artist: string; album: string } }, entryId: number) => ({
-    trackId: match.libraryTrack.id,
-    catalogEntryId: entryId,
-    title: match.libraryTrack.title,
-    subtitle: `${match.libraryTrack.artist} — ${match.libraryTrack.album}`,
-  });
-  const currentTrack = await prisma.musicLibraryTrack.findUnique({ where: { id: trackId } });
-  if (!currentTrack) {
-    res.status(404).json({ error: 'The current local track was not found.' });
-    return;
-  }
-  const currentAlbumTracks = await prisma.musicLibraryTrack.findMany({
-    where: {
-      libraryId: currentTrack.libraryId,
-      normalizedArtist: currentTrack.normalizedArtist,
-      normalizedAlbum: currentTrack.normalizedAlbum,
-    },
-    orderBy: [{ discNumber: 'asc' }, { trackNumber: 'asc' }, { title: 'asc' }],
-  });
-  const currentIndex = currentAlbumTracks.findIndex((track) => track.id === trackId);
-  const nextOnCurrentAlbum = currentIndex >= 0 ? currentAlbumTracks[currentIndex + 1] : null;
-  if (nextOnCurrentAlbum) {
-    res.json({ next: toPlaybackTrack({ libraryTrack: nextOnCurrentAlbum }, cdEntryId) });
-    return;
-  }
-
-  const [library, catalogEntries] = await Promise.all([getMusicLibrary(), prisma.cdEntry.findMany({
-    select: { id: true, artist: true, title: true, personalAlbumFolderPath: true },
-    orderBy: [{ artistSortName: 'asc' }, { artist: 'asc' }, { title: 'asc' }],
-  })]);
-  const currentEntryIndex = catalogEntries.findIndex((entry) => entry.id === cdEntryId);
-  if (library) {
-    for (const entry of catalogEntries.slice(currentEntryIndex + 1)) {
-      const albumAnchor = await findPlaybackAlbumAnchor(entry, library.id);
-      if (albumAnchor) {
-      const firstTrackOnAlbum = await prisma.musicLibraryTrack.findFirst({
-        where: {
-          libraryId: albumAnchor.libraryId,
-          normalizedArtist: albumAnchor.normalizedArtist,
-          normalizedAlbum: albumAnchor.normalizedAlbum,
-        },
-        orderBy: [{ discNumber: 'asc' }, { trackNumber: 'asc' }, { title: 'asc' }],
-      });
-      if (firstTrackOnAlbum) {
-        res.json({ next: toPlaybackTrack({ libraryTrack: firstTrackOnAlbum }, entry.id) });
-        return;
-      }
-    }
-    }
-  }
-  res.json({ next: null });
-});
-
-app.get('/api/music-library/playback/previous', async (req, res) => {
-  const cdEntryId = Number(req.query.cdEntryId);
-  const trackId = Number(req.query.trackId);
-  if (!Number.isInteger(cdEntryId) || cdEntryId <= 0 || !Number.isInteger(trackId) || trackId <= 0) {
-    res.status(400).json({ error: 'The current catalog entry and local track are required.' });
-    return;
-  }
-
-  const toPlaybackTrack = (match: { libraryTrack: { id: number; title: string; artist: string; album: string } }, entryId: number) => ({
-    trackId: match.libraryTrack.id,
-    catalogEntryId: entryId,
-    title: match.libraryTrack.title,
-    subtitle: `${match.libraryTrack.artist} — ${match.libraryTrack.album}`,
-  });
-  const currentTrack = await prisma.musicLibraryTrack.findUnique({ where: { id: trackId } });
-  if (!currentTrack) {
-    res.status(404).json({ error: 'The current local track was not found.' });
-    return;
-  }
-  const currentAlbumTracks = await prisma.musicLibraryTrack.findMany({
-    where: {
-      libraryId: currentTrack.libraryId,
-      normalizedArtist: currentTrack.normalizedArtist,
-      normalizedAlbum: currentTrack.normalizedAlbum,
-    },
-    orderBy: [{ discNumber: 'asc' }, { trackNumber: 'asc' }, { title: 'asc' }],
-  });
-  const currentIndex = currentAlbumTracks.findIndex((track) => track.id === trackId);
-  const previousOnCurrentAlbum = currentIndex > 0 ? currentAlbumTracks[currentIndex - 1] : null;
-  if (previousOnCurrentAlbum) {
-    res.json({ previous: toPlaybackTrack({ libraryTrack: previousOnCurrentAlbum }, cdEntryId) });
-    return;
-  }
-
-  const [library, catalogEntries] = await Promise.all([getMusicLibrary(), prisma.cdEntry.findMany({
-    select: { id: true, artist: true, title: true, personalAlbumFolderPath: true },
-    orderBy: [{ artistSortName: 'asc' }, { artist: 'asc' }, { title: 'asc' }],
-  })]);
-  const currentEntryIndex = catalogEntries.findIndex((entry) => entry.id === cdEntryId);
-  if (library) {
-    for (const entry of catalogEntries.slice(0, currentEntryIndex).reverse()) {
-      const albumAnchor = await findPlaybackAlbumAnchor(entry, library.id);
-      if (albumAnchor) {
-      const lastTrackOnAlbum = await prisma.musicLibraryTrack.findFirst({
-        where: {
-          libraryId: albumAnchor.libraryId,
-          normalizedArtist: albumAnchor.normalizedArtist,
-          normalizedAlbum: albumAnchor.normalizedAlbum,
-        },
-        orderBy: [{ discNumber: 'desc' }, { trackNumber: 'desc' }, { title: 'desc' }],
-      });
-      if (lastTrackOnAlbum) {
-        res.json({ previous: toPlaybackTrack({ libraryTrack: lastTrackOnAlbum }, entry.id) });
-        return;
-      }
-    }
-    }
-  }
-  res.json({ previous: null });
-});
-
 app.get('/api/music-library/tracks/:id/stream', async (req, res) => {
   const trackId = Number(req.params.id);
   res.once('finish', () => recordPlaybackDiagnostic(req, res, trackId));
@@ -824,7 +708,7 @@ app.get('/api/cds', async (req, res) => {
     prisma.cdEntry.count({ where }),
   ]);
   res.json({
-    items: items.map(({ coverImageData, coverImageMimeType, ...item }) => ({ ...item, hasCover: Boolean(coverImageData && coverImageMimeType) })),
+    items: items.map(({ coverImageData, coverImageMimeType, ...item }) => ({ ...item, hasCover: Boolean(item.personalAlbumFolderPath || coverImageData && coverImageMimeType) })),
     total, page, pageSize,
   });
 });
@@ -832,9 +716,28 @@ app.get('/api/cds', async (req, res) => {
 app.get('/api/cds/:id/cover', async (req, res) => {
   const entryId = Number(req.params.id);
   const entry = Number.isInteger(entryId) && entryId > 0
-    ? await prisma.cdEntry.findUnique({ where: { id: entryId }, select: { coverImageData: true, coverImageMimeType: true } })
+    ? await prisma.cdEntry.findUnique({ where: { id: entryId }, select: { coverImageData: true, coverImageMimeType: true, personalAlbumFolderPath: true } })
     : null;
-  if (!entry?.coverImageData || !entry.coverImageMimeType) {
+  if (!entry) {
+    res.status(404).end();
+    return;
+  }
+  const library = entry.personalAlbumFolderPath ? await getMusicLibrary() : null;
+  const folderPath = entry.personalAlbumFolderPath ? path.resolve(entry.personalAlbumFolderPath) : null;
+  if (library && folderPath && pathIsWithinRoot(library.rootPath, folderPath) && await isDirectory(folderPath)) {
+    const tracks = await prisma.musicLibraryTrack.findMany({
+      where: { libraryId: library.id, filePath: { startsWith: `${folderPath}${path.sep}` } },
+      select: { filePath: true },
+      orderBy: [{ discNumber: 'asc' }, { trackNumber: 'asc' }, { filePath: 'asc' }],
+    });
+    const localArt = await localAlbumArtService.find(folderPath, tracks.map((track) => track.filePath));
+    if (localArt) {
+      res.setHeader('Cache-Control', 'private, max-age=300');
+      res.type(localArt.mimeType).send(localArt.data);
+      return;
+    }
+  }
+  if (!entry.coverImageData || !entry.coverImageMimeType) {
     res.status(404).end();
     return;
   }

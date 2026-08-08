@@ -12,7 +12,6 @@ type MusicLibraryPageProps = {
   onLibraryPathChange: (value: string) => void;
   onSaveLibrary: () => void;
   onScanLibrary: () => void;
-  onScanCatalogLocations: () => void;
   onUpdateValuations: () => void;
   onSyncDiscogsCollection: () => void;
 };
@@ -20,7 +19,7 @@ type MusicLibraryPageProps = {
 export function MusicLibraryPage({
   library, libraryPath, libraryStatus, savingLibrary, marketStatsBackfill, marketStatsBackfillStatus,
   discogsCollectionSync, discogsCollectionSyncStatus, onLibraryPathChange, onSaveLibrary, onScanLibrary,
-  onScanCatalogLocations, onUpdateValuations, onSyncDiscogsCollection,
+  onUpdateValuations, onSyncDiscogsCollection,
 }: MusicLibraryPageProps) {
   return <>
     <h1>Music Library</h1>
@@ -31,18 +30,17 @@ export function MusicLibraryPage({
       <input id="music-library-path" value={libraryPath} onChange={(event) => onLibraryPathChange(event.target.value)} placeholder="H:\\Music\\Rips" />
       <div className="form-actions">
         <button type="button" onClick={onSaveLibrary} disabled={savingLibrary || !libraryPath.trim()}>{savingLibrary ? 'Saving...' : 'Save Folder'}</button>
-        <button type="button" className="secondary-button" onClick={onScanLibrary} disabled={!library?.rootPath || library.scan.status === 'scanning'}>{library?.scan.status === 'scanning' ? 'Scanning...' : 'Scan Library'}</button>
+        <button type="button" className="secondary-button" onClick={onScanLibrary} disabled={!library?.rootPath || library.scan.status === 'scanning'}>{library?.scan.status === 'scanning' ? (library.catalogLocationScan.status === 'scanning' ? 'Matching Catalog...' : 'Scanning...') : 'Scan Library'}</button>
       </div>
       {library?.rootPath ? <div className="music-library-summary"><strong>Current folder:</strong> {library.rootPath}<br /><strong>Indexed tracks:</strong> {library.trackCount.toLocaleString()}{library.lastScannedAt ? <> · last scan {new Date(library.lastScannedAt).toLocaleString()}</> : null}</div> : <p className="hint">Save the folder first, then run the initial scan.</p>}
-      {library?.scan.status === 'scanning' ? <p className="hint">Scanning: {library.scan.scannedFiles.toLocaleString()} files checked · {library.scan.indexedFiles.toLocaleString()} indexed · {library.scan.skippedFiles.toLocaleString()} skipped</p> : null}
+      {library?.scan.status === 'scanning' && library.catalogLocationScan.status !== 'scanning' ? <p className="hint">Step 1 of 2 — scanning disk: {library.scan.scannedFiles.toLocaleString()} files checked · {library.scan.indexedFiles.toLocaleString()} indexed · {library.scan.skippedFiles.toLocaleString()} skipped</p> : null}
       {library?.scan.status === 'failed' ? <p className="hint">Scan failed: {library.scan.error}</p> : null}
       {libraryStatus ? <p className="hint">{libraryStatus}</p> : null}
     </div>
     <div className="card music-library-card">
       <h2>Catalog Local Copies</h2>
-      <p>Compare every catalog artist and album against your indexed, tagged music and save high-confidence album-folder matches. This uses only your local database and files already indexed by Scan Library.</p>
-      <div className="form-actions"><button type="button" onClick={onScanCatalogLocations} disabled={!library?.rootPath || library.trackCount === 0 || library.catalogLocationScan.status === 'scanning' || library.scan.status === 'scanning'}>{library?.catalogLocationScan.status === 'scanning' ? 'Matching Catalog...' : 'Scan Catalog for Local Copies'}</button></div>
-      {library?.catalogLocationScan.status === 'scanning' ? <p className="hint">Progress: {library.catalogLocationScan.processed.toLocaleString()} / {library.catalogLocationScan.total.toLocaleString()} catalog albums checked · {library.catalogLocationScan.matched.toLocaleString()} new matches · {library.catalogLocationScan.alreadyMapped.toLocaleString()} already linked</p> : null}
+      <p>Every Scan Library run now follows disk indexing with a whole-catalog matching pass, saving high-confidence links to albums found in your playback collection.</p>
+      {library?.catalogLocationScan.status === 'scanning' ? <p className="hint">Step 2 of 2 — matching catalog: {library.catalogLocationScan.processed.toLocaleString()} / {library.catalogLocationScan.total.toLocaleString()} catalog albums checked · {library.catalogLocationScan.matched.toLocaleString()} new matches · {library.catalogLocationScan.alreadyMapped.toLocaleString()} already linked</p> : null}
       {library?.catalogLocationScan.status === 'complete' ? <p className="hint">Complete: {library.catalogLocationScan.processed.toLocaleString()} catalog albums checked · {library.catalogLocationScan.matched.toLocaleString()} new matches · {library.catalogLocationScan.alreadyMapped.toLocaleString()} existing links retained · {library.catalogLocationScan.unmatched.toLocaleString()} not found.</p> : null}
       {library?.catalogLocationScan.status === 'failed' ? <p className="hint">Catalog local-copy matching failed: {library.catalogLocationScan.error || 'Unknown error.'}</p> : null}
     </div>

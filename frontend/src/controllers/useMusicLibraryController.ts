@@ -15,7 +15,7 @@ export function useMusicLibraryController(activePage: ActivePage) {
   const [discogsCollectionSyncStatus, setDiscogsCollectionSyncStatus] = useState('');
 
   useEffect(() => {
-    if (activePage !== 'library') return;
+    if (activePage !== 'library' && activePage !== 'catalog') return;
     let cancelled = false;
     const loadLibrary = async () => {
       try {
@@ -47,7 +47,10 @@ export function useMusicLibraryController(activePage: ActivePage) {
         if (!cancelled) setDiscogsCollectionSyncStatus('Unable to load Discogs collection-sync status.');
       }
     };
-    const loadAll = () => { void loadLibrary(); void loadMarketStatsBackfill(); void loadDiscogsCollectionSync(); };
+    const loadAll = () => {
+      void loadLibrary();
+      if (activePage === 'library') { void loadMarketStatsBackfill(); void loadDiscogsCollectionSync(); }
+    };
     loadAll();
     const interval = window.setInterval(loadAll, 1500);
     return () => { cancelled = true; window.clearInterval(interval); };
@@ -71,7 +74,7 @@ export function useMusicLibraryController(activePage: ActivePage) {
       const response = await fetch('/api/music-library/scan', { method: 'POST' });
       const data = await response.json() as { error?: string };
       if (!response.ok) throw new Error(data.error || 'Unable to start the music-library scan.');
-      setLibraryStatus('Scanning your tagged music files. You can leave this page while it runs.');
+      setLibraryStatus('Scanning tagged music files, then matching the complete catalog to your playback collection. You can leave this page while it runs.');
     } catch (error) { setLibraryStatus(error instanceof Error ? error.message : 'Unable to start the music-library scan.'); }
   };
 

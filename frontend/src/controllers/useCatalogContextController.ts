@@ -15,7 +15,7 @@ export function useCatalogContextController(search: DiscogsSearchController, det
     setYouTubePlayer, setPersonalTrackMatches, setPersonalMusicStatus, setPersonalArtistFolders,
     setPersonalBrowsableAlbumFolders, setShowPersonalFolderMapping, setPersonalTrackNotFoundPrompt,
     setSelectedPersonalArtistFolderPath, setSelectedPersonalAlbumFolderPath, setPersonalAlbumValidation,
-    setPersonalAlbumMappingStatus,
+    setPersonalAlbumMappingStatus, setAlbumPlaybackNotFound,
   } = detail;
   const [ebayListingStats, setEbayListingStats] = useState<EBayActiveListingStats | null>(null);
   const [ebayListingStatus, setEbayListingStatus] = useState('');
@@ -92,6 +92,7 @@ export function useCatalogContextController(search: DiscogsSearchController, det
       setYouTubePlayer(null);
       setPersonalTrackMatches([]);
       setPersonalMusicStatus('');
+      setAlbumPlaybackNotFound(false);
       setPersonalArtistFolders(null);
       setPersonalBrowsableAlbumFolders(null);
       setShowPersonalFolderMapping(false);
@@ -135,6 +136,7 @@ export function useCatalogContextController(search: DiscogsSearchController, det
     setYouTubePlayer(null);
     setPersonalTrackMatches([]);
     setPersonalMusicStatus('');
+    setAlbumPlaybackNotFound(false);
 
     const lookups: Promise<void>[] = [];
     if (viewedEntry.artistSummary || viewedEntry.discogsNotes) {
@@ -299,4 +301,3 @@ export function useCatalogContextController(search: DiscogsSearchController, det
     releaseContext,setReleaseContext,releaseContextStatus,setReleaseContextStatus,
   };
 }
-

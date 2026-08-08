@@ -47,19 +47,19 @@ export function DiscogsManagerApplication() {
     setSearchBarcode(barcode); setHasSearched(false); setCurrentPage(1); void searchDiscogs(barcode);
   });
   const detail = useCatalogDetailController();
-  const { viewedEntry,setViewedEntry,setYouTubePlayer,setPersonalMusicStatus,localAudioPlayer,setLocalAudioPlayer,personalArtistFolders,personalBrowsableAlbumFolders,showPersonalFolderMapping,setShowPersonalFolderMapping,selectedPersonalArtistFolderPath,selectedPersonalAlbumFolderPath,personalAlbumValidation,personalTrackNotFoundPrompt,setPersonalTrackNotFoundPrompt,personalAlbumMappingStatus } = detail;
+  const { viewedEntry,setViewedEntry,setYouTubePlayer,setPersonalMusicStatus,localAudioPlayer,setLocalAudioPlayer,albumPlaybackNotFound,setAlbumPlaybackNotFound,personalArtistFolders,personalBrowsableAlbumFolders,showPersonalFolderMapping,setShowPersonalFolderMapping,selectedPersonalArtistFolderPath,selectedPersonalAlbumFolderPath,personalAlbumValidation,personalTrackNotFoundPrompt,setPersonalTrackNotFoundPrompt,personalAlbumMappingStatus } = detail;
   const libraryController = useMusicLibraryController(activePage);
   const {
     library: musicLibrary, libraryPath: musicLibraryPath,
     setLibraryPath: setMusicLibraryPath, libraryStatus: musicLibraryStatus,
-    setLibraryStatus: setMusicLibraryStatus, savingLibrary: savingMusicLibrary,
+    savingLibrary: savingMusicLibrary,
     marketStatsBackfill, marketStatsBackfillStatus, discogsCollectionSync,
     discogsCollectionSyncStatus,
     saveLibrary: saveMusicLibrary, scanLibrary: scanMusicLibrary,
     startMarketStatsBackfill, startDiscogsCollectionSync,
   } = libraryController;
-  const playback = usePlaybackController(detail, { setItems, setCollectionStatus, setMusicLibraryStatus });
-  const { loadDetailImages, openDiscogsRelease, openDiscogsMarketplace, openTracklist, openTrackOnYouTube, findYouTubeMatches, chooseYouTubeMatch, findPersonalCopy, playLocalCopy, playNextLocalCopy, scanCatalogPersonalLocations, playPreviousLocalCopy, syncPersonalTrackLocations, savePersonalAlbumFolder, beginManualPersonalAlbumMatch, browsePersonalAlbumFolders, validatePersonalAlbumFolder } = playback;
+  const playback = usePlaybackController(detail, { setItems, setCollectionStatus });
+  const { loadDetailImages, openDiscogsRelease, openDiscogsMarketplace, openTracklist, openTrackOnYouTube, findYouTubeMatches, chooseYouTubeMatch, findPersonalCopy, playLocalCopy, playAlbum, playNextLocalCopy, playPreviousLocalCopy, syncPersonalTrackLocations, savePersonalAlbumFolder, beginManualPersonalAlbumMatch, browsePersonalAlbumFolders, validatePersonalAlbumFolder } = playback;
   const editor = useCatalogEditorController({ catalog, detail, search, setActivePage });
   const { title,setTitle,artist,setArtist,notes,setNotes,mediaCondition,setMediaCondition,estimatedValueOverride,setEstimatedValueOverride,setHasEstimatedValueOverride,entryBeingCorrected,catalogSaveAction,catalogSaveError,setCatalogSaveError,handleSave,beginMatchCorrection,cancelMatchCorrection,openEbaySearch,removeCatalogEntry,beginEstimatedValueEdit,saveEstimatedValue,beginCatalogDetailsEdit,saveCatalogDetails } = editor;
   const context = useCatalogContextController(search, detail);
@@ -131,7 +131,6 @@ export function DiscogsManagerApplication() {
         onLibraryPathChange={setMusicLibraryPath}
         onSaveLibrary={() => void saveMusicLibrary()}
         onScanLibrary={() => void scanMusicLibrary()}
-        onScanCatalogLocations={() => void scanCatalogPersonalLocations()}
         onUpdateValuations={() => void startMarketStatsBackfill()}
         onSyncDiscogsCollection={() => void startDiscogsCollectionSync()}
       />}
@@ -183,6 +182,11 @@ export function DiscogsManagerApplication() {
         status={collectionStatus}
         sort={collectionSort}
         hasOpenDetail={Boolean(viewedEntry)}
+        showPlaybackLinkStatus={Boolean(
+          libraryController.library?.lastScannedAt
+          && libraryController.library.scan.status !== 'scanning'
+          && libraryController.library.catalogLocationScan.status !== 'scanning',
+        )}
         onSearchChange={(value) => { collectionLoadInFlightRef.current = false; setCollectionSearch(value); setCollectionPage(1); setItems([]); setCollectionTotal(0); }}
         onStyleChange={(value) => { collectionLoadInFlightRef.current = false; setCollectionStyle(value); setCollectionPage(1); setItems([]); setCollectionTotal(0); }}
         onSortChange={(value) => { collectionLoadInFlightRef.current = false; setCollectionSort(value); setCollectionPage(1); setItems([]); setCollectionTotal(0); }}
@@ -209,6 +213,7 @@ export function DiscogsManagerApplication() {
             openRelease: openDiscogsRelease,
             loadImages: () => void loadDetailImages(),
             openTracklist: () => void openTracklist(),
+            playAlbum: () => void playAlbum(),
             beginDetailsEdit: beginCatalogDetailsEdit,
             beginValueEdit: beginEstimatedValueEdit,
             correctMatch: beginMatchCorrection,
@@ -243,6 +248,7 @@ export function DiscogsManagerApplication() {
         </>
       )}
       {catalogSaveError ? <ModalDialog label="Catalog save error" className="artist-summary-dialog catalog-save-error-dialog" onClose={() => setCatalogSaveError(null)}><div className="artist-summary-dialog-header"><h2>Cannot Save Catalog Entry</h2></div><p>{catalogSaveError}</p><div className="form-actions"><button type="button" autoFocus onClick={() => setCatalogSaveError(null)}>OK</button></div></ModalDialog> : null}
+      {albumPlaybackNotFound ? <ModalDialog label="Album not found in playback collection" onClose={() => setAlbumPlaybackNotFound(false)}><div className="artist-summary-dialog-header"><h2>Album Not Found</h2></div><p>Album not found in playback collection.</p><div className="form-actions"><button type="button" autoFocus onClick={() => setAlbumPlaybackNotFound(false)}>OK</button></div></ModalDialog> : null}
       </main>
       {localAudioPlayer ? <LocalAudioPlayer {...localAudioPlayer} onEnded={() => void playNextLocalCopy()} onPrevious={() => void playPreviousLocalCopy()} onNext={() => void playNextLocalCopy()} onClose={() => setLocalAudioPlayer(null)} onError={setPersonalMusicStatus} /> : null}
     </div>

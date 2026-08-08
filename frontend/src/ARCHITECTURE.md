@@ -23,11 +23,13 @@ Views receive typed state and actions. They do not perform API requests.
 - `useCatalogDetailController` owns catalog-detail and playback view state.
 - `useCatalogContextController` loads Discogs, MusicBrainz, eBay, market, YouTube-match, and personal-match context.
 - `useCatalogEditorController` owns catalog add, correction, removal, and edit commands.
-- `usePlaybackController` owns release media, YouTube, local playback, and personal-folder workflows.
+- `useReleaseMediaController` owns Discogs images and tracklists plus YouTube discovery and selection.
+- `usePlaybackController` composes release media with local playback and personal-folder workflows.
 - `useMusicLibraryController` owns library configuration, scanning, polling, valuation updates, and Discogs collection synchronization.
 - `useBarcodeScanner` and `useCatalogNumberVoice` isolate browser-device lifecycles.
 
 Shared domain contracts live in `types.ts`; pure catalog formatting and normalization functions live in `utils/catalog.ts`.
+Typed adapters in `api/` own HTTP request construction, response parsing, and transport errors so controllers remain focused on UI workflows.
 
 ## Data-safety invariant
 
