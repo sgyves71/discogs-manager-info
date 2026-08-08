@@ -9,6 +9,7 @@ import { TracklistDialog } from './TracklistDialog';
 type Actions = {
   close: () => void; searchEbay: (entry: CdEntry) => void; openMarketplace: (entry: CdEntry) => void;
   openRelease: (entry: CdEntry) => void; loadImages: () => void; openTracklist: () => void;
+  playAlbum: () => void;
   beginDetailsEdit: () => void; beginValueEdit: () => void; correctMatch: (entry: CdEntry) => void;
   remove: (entry: CdEntry) => void; saveDetails: FormEventHandler; saveValue: () => void;
   expandSummary: (summary: string) => void; syncPersonalLocations: () => void;
@@ -31,13 +32,16 @@ export function CatalogDetailDialog({ entry, controller: c, mediaConditions, sav
         {c.detailCoverImage ? <img className="detail-cover" src={c.detailCoverImage} alt={`Cover art for ${entry.title}`} /> : <div className="detail-cover cover-placeholder">No cover art</div>}
         <div><h3>{entry.artist} — {entry.title}</h3><p>{entry.format || 'Format unknown'}{entry.year ? ` • ${entry.year}` : ''}</p>{entry.discogsUri ? <a href={`https://www.discogs.com${entry.discogsUri}`} target="_blank" rel="noreferrer">View on Discogs</a> : null}</div>
         <div className="collection-detail-controls"><div className="detail-action-menu">
+          <div className="detail-quick-actions">
+            <button type="button" className="detail-quick-action" aria-label="Play album" title="Play album" onClick={actions.playAlbum}>▶</button>
+            <button type="button" className="detail-quick-action" aria-label="Show tracklist" title="Show tracklist" disabled={!entry.discogsId} onClick={actions.openTracklist}>☷</button>
+          </div>
           <button type="button" className="detail-action-menu-trigger" aria-label={`Actions for ${entry.artist} — ${entry.title}`} aria-expanded={c.detailActionMenuOpen} title="Catalog actions" onClick={() => c.setDetailActionMenuOpen((open) => !open)}>•••</button>
           {c.detailActionMenuOpen ? <div className="detail-action-menu-items">
             <button type="button" onClick={() => { c.setDetailActionMenuOpen(false); actions.searchEbay(entry); }}>Open eBay Listings</button>
             <button type="button" className="secondary-button" disabled={!entry.discogsId} onClick={() => { c.setDetailActionMenuOpen(false); actions.openMarketplace(entry); }}>Open Discogs Marketplace</button>
             <button type="button" className="secondary-button" disabled={!entry.discogsId && !entry.discogsUri} onClick={() => { c.setDetailActionMenuOpen(false); actions.openRelease(entry); }}>Open Discogs Release</button>
             <button type="button" className="secondary-button" disabled={!entry.discogsId} onClick={() => { c.setDetailActionMenuOpen(false); actions.loadImages(); }}>{c.showDetailImages ? 'Hide Release Images' : 'Show All Release Images'}</button>
-            <button type="button" className="secondary-button" disabled={!entry.discogsId} onClick={() => { c.setDetailActionMenuOpen(false); actions.openTracklist(); }}>Show Tracklist</button>
             <button type="button" className="secondary-button" onClick={() => { c.setDetailActionMenuOpen(false); actions.beginDetailsEdit(); }}>Edit Catalog Details</button>
             <button type="button" className="secondary-button" onClick={() => { c.setDetailActionMenuOpen(false); actions.beginValueEdit(); }}>Update Estimated Value</button>
             <button type="button" className="secondary-button" onClick={() => { c.setDetailActionMenuOpen(false); actions.correctMatch(entry); }}>Change Discogs Release</button>

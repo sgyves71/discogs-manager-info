@@ -468,6 +468,7 @@ button:disabled {
 }
 
 .collection-detail {
+  position: relative;
   width: min(820px, 100%);
   max-height: min(86vh, 900px);
   overflow: auto;
@@ -523,9 +524,10 @@ button:disabled {
 
 .collection-detail-header {
   display: grid;
-  grid-template-columns: 164px minmax(0, 1fr) 270px;
+  grid-template-columns: 164px minmax(0, 1fr);
   gap: 1rem;
   align-items: start;
+  padding-right: 10rem;
 }
 
 .collection-detail-header h3,
@@ -573,14 +575,70 @@ button:disabled {
 }
 
 .collection-detail-controls {
+  position: absolute;
+  top: 1.25rem;
+  right: 3.7rem;
   display: flex;
   align-items: flex-start;
-  justify-content: flex-start;
+  justify-content: flex-end;
   gap: 0.45rem;
 }
 
 .detail-action-menu {
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.catalog-playback-missing {
+  position: absolute;
+  z-index: 2;
+  top: 0.55rem;
+  right: 0.55rem;
+  width: 2rem;
+  height: 2rem;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.65));
+}
+
+.catalog-playback-missing svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: #20262c;
+  stroke: #ff5757;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.catalog-playback-missing .catalog-playback-missing-slash {
+  stroke-width: 3.2;
+}
+
+.detail-quick-actions {
+  display: flex;
+  gap: 0.45rem;
+}
+
+.detail-quick-action {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #64717c;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #454f58, #333b43);
+  color: #e8edf2;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.detail-quick-action:hover:not(:disabled) {
+  border-color: #80c4e8;
+  background: #3f708d;
 }
 
 .detail-action-menu-trigger {
@@ -607,11 +665,11 @@ button:disabled {
   position: absolute;
   z-index: 35;
   top: 100%;
-  left: 0;
+  right: 0;
   display: grid;
   width: 270px;
-  gap: 0.45rem;
-  padding: 0.55rem;
+  gap: 0.25rem;
+  padding: 0.4rem;
   border: 1px solid #62717c;
   border-radius: 8px;
   background: #252c33;
@@ -620,8 +678,10 @@ button:disabled {
 
 .detail-action-menu-items button {
   width: 100%;
-  padding: 0.6rem 0.75rem;
+  min-height: 34px;
+  padding: 0.4rem 0.65rem;
   font-size: 0.85rem;
+  line-height: 1.2;
   text-align: left;
   white-space: normal;
 }
@@ -921,6 +981,12 @@ button:disabled {
 
 .local-audio-player-navigation button {
   flex: 1;
+}
+
+.local-audio-player-navigation .player-skip-button {
+  min-height: 2.55rem;
+  font-size: 1.35rem;
+  line-height: 1;
 }
 
 .local-audio-player-note,
@@ -1677,8 +1743,8 @@ button:disabled {
   }
 
   .collection-detail-controls {
-    grid-column: 1 / -1;
-    justify-content: space-between;
+    top: 1.25rem;
+    right: 3.7rem;
   }
 
   .detail-cover {

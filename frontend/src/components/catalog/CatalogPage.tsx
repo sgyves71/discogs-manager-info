@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { CdEntry } from '../../types';
+import { PlaybackUnavailableIcon } from '../shared/PlaybackUnavailableIcon';
 
 type CatalogPageProps = {
   items: CdEntry[];
@@ -12,6 +13,7 @@ type CatalogPageProps = {
   status: string;
   sort: 'artist' | 'discogs-median-desc' | 'estimated-value-desc';
   hasOpenDetail: boolean;
+  showPlaybackLinkStatus: boolean;
   onSearchChange: (value: string) => void;
   onStyleChange: (value: string) => void;
   onSortChange: (value: 'artist' | 'discogs-median-desc' | 'estimated-value-desc') => void;
@@ -24,13 +26,16 @@ type CatalogPageProps = {
 };
 
 export function CatalogPage({
-  items, search, style, styleOptions, total, isLoading, hasMoreItems, status, sort, hasOpenDetail,
+  items, search, style, styleOptions, total, isLoading, hasMoreItems, status, sort, hasOpenDetail, showPlaybackLinkStatus,
   onSearchChange, onStyleChange, onSortChange, onOpenDetail, onChangeAssociation, onSearchEbay, onRemove, onLoadMore, children,
 }: CatalogPageProps) {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
-  const coverUrl = (item: CdEntry) => `/api/cds/${item.id}/cover${item.coverImageUpdatedAt ? `?updated=${encodeURIComponent(item.coverImageUpdatedAt)}` : ''}`;
+  const coverUrl = (item: CdEntry) => {
+    const version = item.personalAlbumFolderMappedAt ?? item.coverImageUpdatedAt;
+    return `/api/cds/${item.id}/cover${version ? `?updated=${encodeURIComponent(version)}` : ''}`;
+  };
   const showsMedian = sort === 'discogs-median-desc';
   const showsEstimatedValue = sort === 'estimated-value-desc';
   const medianLabel = (item: CdEntry) => item.discogsMarketMedian != null
@@ -113,6 +118,7 @@ export function CatalogPage({
             <article key={item.id} className="catalog-cover-grid-item" role="button" tabIndex={0} onClick={() => { if (!hasOpenDetail) onOpenDetail(item); }} onKeyDown={(event) => {
               if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (!hasOpenDetail) onOpenDetail(item); }
             }}>
+              {showPlaybackLinkStatus && !item.personalAlbumFolderPath ? <PlaybackUnavailableIcon /> : null}
               <div className="catalog-cover-grid-image">{item.hasCover ? <img src={coverUrl(item)} alt={`Cover art for ${item.title}`} /> : <span aria-hidden="true">♫</span>}</div>
               <div className="catalog-cover-grid-caption"><strong>{item.artist}</strong><span>{item.title}</span></div>
               {renderActions(item)}
