@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { linkSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -8,7 +8,8 @@ import { stageBackendConfig, stageDatabasePath } from '../stage-safety.mjs';
 const environment = { APP_ENV: 'stage', DATABASE_URL: 'file:./stage.db', HOST: '127.0.0.1', PORT: '3101' };
 
 function fixture(t) {
-  const root = mkdtempSync(path.join(os.tmpdir(), 'discogs-stage-guard-'));
+  // Windows runners can expose the temporary directory through an alias.
+  const root = mkdtempSync(path.join(realpathSync.native(os.tmpdir()), 'discogs-stage-guard-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const directory = path.join(root, 'backend', 'prisma');
   mkdirSync(directory, { recursive: true });
