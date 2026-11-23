@@ -3,9 +3,12 @@ param(
   [string]$ProjectRoot = '',
   [string]$SiteName = 'DiscogsManager',
   [string]$IisContentPath = 'C:\inetpub\DiscogsManager',
-  [string]$LanAddress = '192.168.68.50',
+  [Parameter(Mandatory)]
+  [ValidateNotNullOrEmpty()]
+  [string]$LanAddress,
   [string]$BackendServiceName = 'DiscogsManagerBackend',
-  [string]$PfxPassword = 'changeit'
+  [Parameter(Mandatory)]
+  [SecureString]$PfxPassword
 )
 
 $ErrorActionPreference = 'Stop'
@@ -29,8 +32,7 @@ New-Item -ItemType Directory -Force -Path $IisContentPath | Out-Null
 Copy-Item -Path (Join-Path $frontendDist '*') -Destination $IisContentPath -Recurse -Force
 Copy-Item -LiteralPath $webConfig -Destination (Join-Path $IisContentPath 'web.config') -Force
 
-$securePassword = ConvertTo-SecureString -String $PfxPassword -AsPlainText -Force
-$certificate = Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation 'Cert:\LocalMachine\My' -Password $securePassword
+$certificate = Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation 'Cert:\LocalMachine\My' -Password $PfxPassword
 
 if (-not (Get-Website -Name $SiteName -ErrorAction SilentlyContinue)) {
   New-Website -Name $SiteName -PhysicalPath $IisContentPath -Port 443 -IPAddress $LanAddress -Ssl | Out-Null

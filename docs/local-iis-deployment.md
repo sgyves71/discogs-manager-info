@@ -8,7 +8,7 @@ This runbook makes Discogs Manager available after VS Code and development termi
 Browser on this PC or phone
         |
         v
-IIS HTTPS site on 192.168.68.50:443
+IIS HTTPS site on <your-lan-ip>:443
   - static files from frontend/dist
   - /api reverse proxy to 127.0.0.1:3100
         |
@@ -26,14 +26,14 @@ The backend must bind to `127.0.0.1`, not the LAN address. IIS is the only netwo
 2. Install IIS **URL Rewrite** and **Application Request Routing (ARR)**. In IIS Manager, open **Application Request Routing Cache > Server Proxy Settings** and enable **Proxy**. The supplied `deploy/iis/web.config` relies on this.
 3. Keep Node.js installed at its current stable location. The backend service runs `node backend/dist/index.js`.
 4. Install [NSSM](https://nssm.cc/) to run the backend as a recoverable Windows service. Do not use a development `npm run dev` process for the permanent service.
-5. Obtain an IIS HTTPS certificate that includes `192.168.68.50`. A certificate trusted by the iPhone is required for camera access. Your existing mkcert certificate can be exported as a PFX for IIS, or a new IIS certificate can be created and trusted on each phone.
+5. Obtain an IIS HTTPS certificate that includes `<your-lan-ip>`. A certificate trusted by the iPhone is required for camera access. Your existing mkcert certificate can be exported as a PFX for IIS, or a new IIS certificate can be created and trusted on each phone.
 
 ## Configure the Backend Service
 
-Build once first:
+Replace the example checkout path and LAN address with your local values. Build once first:
 
 ```powershell
-cd D:\VSProjects\DiscogsManager
+cd C:\path\to\DiscogsManager
 npm run build
 ```
 
@@ -48,8 +48,8 @@ PORT=3100
 From an elevated PowerShell, use NSSM. Adjust the NSSM location if needed:
 
 ```powershell
-nssm install DiscogsManagerBackend "C:\Program Files\nodejs\node.exe" "D:\VSProjects\DiscogsManager\backend\dist\index.js"
-nssm set DiscogsManagerBackend AppDirectory "D:\VSProjects\DiscogsManager\backend"
+nssm install DiscogsManagerBackend "C:\Program Files\nodejs\node.exe" "C:\path\to\DiscogsManager\backend\dist\index.js"
+nssm set DiscogsManagerBackend AppDirectory "C:\path\to\DiscogsManager\backend"
 nssm set DiscogsManagerBackend AppEnvironmentExtra "NODE_ENV=production" "HOST=127.0.0.1" "PORT=3100"
 nssm set DiscogsManagerBackend Start SERVICE_AUTO_START
 nssm set DiscogsManagerBackend AppExit Default Restart
@@ -62,14 +62,18 @@ Confirm locally before involving IIS:
 Invoke-WebRequest http://127.0.0.1:3100/api/health
 ```
 
-For the initial installation, the branch also includes `scripts/deploy/configure-local-iis.ps1`. It creates the IIS site, enables ARR proxying, imports the mkcert PFX, creates the Private-network firewall rule, downloads NSSM from its official site, and registers the backend service. Run it only from an elevated PowerShell after a successful build.
+For the initial installation, the branch also includes `scripts/deploy/configure-local-iis.ps1`. It creates the IIS site, enables ARR proxying, imports the mkcert PFX, creates the Private-network firewall rule, downloads NSSM from its official site, and registers the backend service. Run it from an elevated PowerShell after a successful build. Supply the LAN address and enter the PFX password at the prompt:
+
+```powershell
+.\scripts\deploy\configure-local-iis.ps1 -LanAddress '<your-lan-ip>' -PfxPassword (Read-Host 'PFX password' -AsSecureString)
+```
 
 ## Configure IIS
 
 1. Create `C:\inetpub\DiscogsManager`.
 2. Create an IIS site named `DiscogsManager`, with that folder as its physical path.
-3. Bind HTTPS on port 443 to `192.168.68.50` and assign the trusted certificate.
-4. Open the site from this PC at `https://localhost/` and from the phone at `https://192.168.68.50/`. The setup script also adds an HTTP binding only to redirect users to HTTPS.
+3. Bind HTTPS on port 443 to `<your-lan-ip>` and assign the trusted certificate.
+4. Open the site from this PC at `https://localhost/` and from the phone at `https://<your-lan-ip>/`. The setup script also adds an HTTP binding only to redirect users to HTTPS.
 
 The deployment script copies built files and the supplied `web.config` to the IIS folder. The latter proxies `/api/*` to the local backend and returns `index.html` for React routes.
 
@@ -103,7 +107,7 @@ Before any release that includes new Prisma migrations, make a verified backup, 
 
 ```powershell
 Stop-Service DiscogsManagerBackend
-cd D:\VSProjects\DiscogsManager\backend
+cd C:\path\to\DiscogsManager\backend
 $env:DATABASE_URL = 'file:./dev.db'
 try { npx prisma migrate deploy } finally { Remove-Item Env:DATABASE_URL }
 Start-Service DiscogsManagerBackend

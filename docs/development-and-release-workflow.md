@@ -72,11 +72,11 @@ git push origin main
 
 ## 5. Apply Database Migrations When Needed
 
-Only do this for a release that adds a checked-in Prisma migration. The deployment backup step below must happen first.
+Only do this for a release that adds a checked-in Prisma migration. Make a verified backup first. Replace the example checkout path and LAN address in this runbook with your local values.
 
 ```powershell
 Stop-Service DiscogsManagerBackend
-cd D:\VSProjects\DiscogsManager\backend
+cd C:\path\to\DiscogsManager\backend
 $env:DATABASE_URL = 'file:./dev.db'
 try { npx prisma migrate deploy } finally { Remove-Item Env:DATABASE_URL }
 cd ..
@@ -90,7 +90,7 @@ Do not use `prisma db push` for the Production catalog.
 Build the merged `main` branch, then use an elevated PowerShell:
 
 ```powershell
-cd D:\VSProjects\DiscogsManager
+cd C:\path\to\DiscogsManager
 npm run build
 powershell.exe -ExecutionPolicy Bypass -File .\scripts\deploy\deploy-iis-site.ps1 `
   -IisContentPath 'C:\inetpub\DiscogsManager' `
@@ -104,7 +104,7 @@ The deployment script creates and verifies a timestamped SQLite online backup in
 Open the permanent application from this PC and phone:
 
 ```text
-https://192.168.68.50/
+https://<your-lan-ip>/
 ```
 
 The automatic services should be running:
