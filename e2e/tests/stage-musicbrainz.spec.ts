@@ -37,7 +37,7 @@ test.describe('Stage MusicBrainz Search', () => {
     const entry = await create.json() as { id: number };
     try {
       await page.goto('/');
-      await page.getByRole('button', { name: 'Catalog' }).click();
+      await page.getByRole('button', { name: 'Catalog', exact: true }).click();
       await page.getByText('Mocked CD Album', { exact: true }).click();
 
       await expect(page.getByText('Artist Details', { exact: false })).toBeVisible();

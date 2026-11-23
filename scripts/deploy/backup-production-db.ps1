@@ -4,6 +4,8 @@ param(
   [string]$BackupDirectory = ''
 )
 
+$ErrorActionPreference = 'Stop'
+
 if (-not $DatabasePath) { $DatabasePath = Join-Path $PSScriptRoot '..\..\backend\prisma\dev.db' }
 if (-not $BackupDirectory) { $BackupDirectory = Join-Path $PSScriptRoot '..\..\backend\prisma\backups' }
 $resolvedDatabase = [System.IO.Path]::GetFullPath($DatabasePath)
@@ -15,5 +17,6 @@ if (-not (Test-Path -LiteralPath $resolvedDatabase -PathType Leaf)) {
 New-Item -ItemType Directory -Path $resolvedBackupDirectory -Force | Out-Null
 $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $backupPath = Join-Path $resolvedBackupDirectory "discogs-manager-$timestamp.db"
-Copy-Item -LiteralPath $resolvedDatabase -Destination $backupPath -ErrorAction Stop
-Write-Output "Created production database backup: $backupPath"
+& node (Join-Path $PSScriptRoot 'backup-sqlite.mjs') $resolvedDatabase $backupPath
+if ($LASTEXITCODE -ne 0) { throw 'SQLite online backup or integrity verification failed.' }
+Write-Output "Created and verified production database backup: $backupPath"

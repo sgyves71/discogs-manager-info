@@ -110,6 +110,7 @@ export type PersonalTrackMatch = {
     album: string;
     title: string;
     trackNumber: number | null;
+    discNumber: number | null;
     format: string | null;
   };
 };

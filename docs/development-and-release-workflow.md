@@ -22,7 +22,7 @@ Run the normal development servers while working:
 npm run dev
 ```
 
-This starts the Vite frontend at `https://localhost:5173/` and the development API at port 3100. For phone testing during development, use the current LAN URL with port 5173. Do not use the development servers for permanent day-to-day access; IIS now serves the deployed application at `https://192.168.68.50/`.
+This starts the synthetic Stage API in watch mode and the Vite frontend on loopback ports 3101 and 5174. Seed Stage before the first run. The IIS service explicitly sets production mode and owns the personal database.
 
 ## 3. Build and Test
 
@@ -45,7 +45,7 @@ In a second terminal:
 npm run test:e2e:stage
 ```
 
-Stage runs its API on port 3101 and frontend on port 5174. It uses `backend/prisma/stage.db`, which can be reset and mutated safely. Stop its servers after testing.
+Stage binds its API and frontend to loopback on ports 3101 and 5174. The API validates the effective dotenv configuration and Stage database path before creating Prisma. Reset only with Stage stopped. The test preflight checks that the direct API and the frontend proxy reach the same seeded Stage instance. See the [Stage test runbook](../e2e/README.md).
 
 ## 4. Commit and Merge
 
@@ -72,12 +72,13 @@ git push origin main
 
 ## 5. Apply Database Migrations When Needed
 
-Only do this for a release that adds a checked-in Prisma migration. The deployment backup step below must happen first.
+Only do this for a release that adds a checked-in Prisma migration. Make a verified backup first. Replace the example checkout path and LAN address in this runbook with your local values.
 
 ```powershell
 Stop-Service DiscogsManagerBackend
-cd D:\VSProjects\DiscogsManager\backend
-npx prisma migrate deploy
+cd C:\path\to\DiscogsManager\backend
+$env:DATABASE_URL = 'file:./dev.db'
+try { npx prisma migrate deploy } finally { Remove-Item Env:DATABASE_URL }
 cd ..
 Start-Service DiscogsManagerBackend
 ```
@@ -89,21 +90,21 @@ Do not use `prisma db push` for the Production catalog.
 Build the merged `main` branch, then use an elevated PowerShell:
 
 ```powershell
-cd D:\VSProjects\DiscogsManager
+cd C:\path\to\DiscogsManager
 npm run build
 powershell.exe -ExecutionPolicy Bypass -File .\scripts\deploy\deploy-iis-site.ps1 `
   -IisContentPath 'C:\inetpub\DiscogsManager' `
   -BackendServiceName 'DiscogsManagerBackend'
 ```
 
-The deployment script creates a timestamped backup in `backend/prisma/backups`, copies the built frontend to IIS, refreshes `web.config`, and restarts the persistent backend service. It does not overwrite the Production database or `backend/.env`.
+The deployment script creates and verifies a timestamped SQLite online backup in `backend/prisma/backups`, copies the frontend to IIS, refreshes `web.config`, and restarts the backend service. Run `npm run deploy:backup` separately for an on-demand backup while IIS stays online. Keep the production database URL out of dotenv so Prisma maintenance requires an explicitly scoped target.
 
 ## 7. Verify the Release
 
 Open the permanent application from this PC and phone:
 
 ```text
-https://192.168.68.50/
+https://<your-lan-ip>/
 ```
 
 The automatic services should be running:

@@ -11,9 +11,13 @@ test.describe('Stage Catalog User Interface', () => {
 
     const search = page.getByRole('textbox', { name: 'Search Collection' });
     await search.fill('Stage Artist');
-    await expect(page.getByText('Stage Artist', { exact: true })).toBeVisible();
+    await expect(page.getByText('Stage Artist', { exact: true })).toHaveCount(2);
     await expect(page.getByText('Stage Album', { exact: true })).toBeVisible();
-    await expect(page.getByText('Showing 1 of 1')).toBeVisible();
+    await expect(page.getByText('Zeta Album', { exact: true })).toBeVisible();
+    await expect(page.getByText('Showing 2 of 2')).toBeVisible();
+    await search.fill('No Such Stage Artist');
+    await expect(page.getByText('Stage Album', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Zeta Album', { exact: true })).toHaveCount(0);
   });
 
   test('Requests Discogs Median Sorting for the Catalog', async ({ page }) => {
@@ -89,7 +93,7 @@ test.describe('Stage Catalog User Interface', () => {
   test('Synchronizes the Stage Catalog to the Stage Discogs Collection', async ({ request }) => {
     const preview = await request.get(`${process.env.E2E_API_URL || 'http://localhost:3100'}/api/discogs/collection-sync`);
     await expect(preview).toBeOK();
-    expect(await preview.json()).toMatchObject({ configured: true, eligible: 1, pending: 1 });
+    expect(await preview.json()).toMatchObject({ configured: true, eligible: 2, pending: 2 });
 
     const start = await request.post(`${process.env.E2E_API_URL || 'http://localhost:3100'}/api/discogs/collection-sync`);
     expect(start.status()).toBe(202);
@@ -100,7 +104,7 @@ test.describe('Stage Catalog User Interface', () => {
     }).toBe('complete');
 
     const completed = await request.get(`${process.env.E2E_API_URL || 'http://localhost:3100'}/api/discogs/collection-sync`);
-    expect(await completed.json()).toMatchObject({ sync: { status: 'complete', added: 1, username: 'stage-discogs-user' } });
+    expect(await completed.json()).toMatchObject({ sync: { status: 'complete', added: 2, failed: 0, username: 'stage-discogs-user' } });
   });
 
   test('Versions a Catalog Cover URL After a Cover Update', async ({ page }) => {
@@ -147,12 +151,13 @@ test.describe('Stage Catalog User Interface', () => {
   test('Shows a Compact Two-Column Cover Grid on Mobile', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
-    await page.getByRole('button', { name: 'Catalog' }).click();
+    await page.getByRole('button', { name: 'Catalog', exact: true }).click();
     const gridButton = page.getByRole('button', { name: 'Cover Grid', exact: true });
     await expect(gridButton).toBeVisible();
     await gridButton.click();
     await expect(page.locator('.catalog-cover-grid')).toBeVisible();
-    await expect(page.locator('.catalog-cover-grid-item')).toHaveCount(1);
+    await expect(page.locator('.catalog-cover-grid-item')).toHaveCount(2);
+    await expect(page.locator('.catalog-cover-grid')).toHaveCSS('grid-template-columns', /^\S+ \S+$/);
   });
 
   test('Loads More Catalog Albums When the Scroll Sentinel Is Reached', async ({ page }) => {
@@ -200,14 +205,14 @@ test.describe('Stage Catalog User Interface', () => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Catalog', exact: true }).click();
     await page.getByText('Stage Album', { exact: true }).click();
-    const menu = page.locator('.detail-action-menu');
-    await menu.locator('summary').click();
-    await expect(menu).toHaveAttribute('open', '');
-    await menu.locator('.detail-action-menu-items').hover();
-    await expect(menu).toHaveAttribute('open', '');
-    await menu.hover();
-    await page.locator('.collection-detail-header').hover({ position: { x: 20, y: 20 } });
-    await expect(menu).not.toHaveAttribute('open', '');
+    const detail = page.getByRole('dialog', { name: 'Details for Stage Artist — Stage Album' });
+    const actions = detail.getByRole('button', { name: 'Actions for Stage Artist — Stage Album' });
+    await actions.click();
+    await expect(actions).toHaveAttribute('aria-expanded', 'true');
+    await detail.getByRole('button', { name: 'Edit Catalog Details' }).hover();
+    await expect(actions).toHaveAttribute('aria-expanded', 'true');
+    await detail.getByRole('heading', { name: 'Stage Artist — Stage Album' }).hover();
+    await expect(actions).toHaveAttribute('aria-expanded', 'false');
   });
 
   test('Blocks Repeat Catalog Saves Until the First Save Completes', async ({ page }) => {
@@ -286,7 +291,8 @@ test.describe('Stage Catalog User Interface', () => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Catalog', exact: true }).click();
     await page.getByText('Stage Album', { exact: true }).click();
-    await page.locator('.detail-action-menu summary').click();
+    await page.getByRole('dialog', { name: 'Details for Stage Artist — Stage Album' })
+      .getByRole('button', { name: 'Actions for Stage Artist — Stage Album' }).click();
     await page.getByRole('button', { name: 'Edit Catalog Details', exact: true }).click();
     const saveButton = page.getByRole('button', { name: 'Save Details', exact: true });
     await saveButton.click();

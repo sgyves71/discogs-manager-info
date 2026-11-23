@@ -3,9 +3,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const child = spawn('cmd.exe', ['/c', 'npm.cmd', 'run', 'dev', '--workspace', 'frontend', '--', '--port', '5174'], {
+const child = spawn('cmd.exe', ['/c', 'npm.cmd', 'run', 'dev', '--workspace', 'frontend', '--', '--host', '127.0.0.1', '--port', '5174', '--strictPort'], {
   cwd: root,
-  env: { ...process.env, VITE_PORT: '5174', VITE_API_PROXY_TARGET: 'http://localhost:3101' },
+  env: { ...process.env, VITE_PORT: '5174', VITE_API_PROXY_TARGET: 'http://127.0.0.1:3101' },
   stdio: 'inherit',
 });
 child.on('exit', (code) => process.exitCode = code ?? 0);

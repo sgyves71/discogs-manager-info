@@ -9,9 +9,10 @@ The frontend uses feature-oriented React components and controller hooks.
 
 ## Feature views
 
-- `components/search` owns Search & Scan presentation.
-- `components/catalog` owns Catalog, statistics, release details, tracklists, and catalog editors.
-- `components/library` owns Music Library presentation.
+- `features/search` owns Search & Scan.
+- `features/catalog` owns Catalog, statistics, release details, tracklists, and catalog editors.
+- `features/library` owns Music Library and playback workflows.
+- Each feature keeps its views in `components/`, workflow hooks in `controllers/`, and HTTP calls in `api/`.
 - `components/shared` contains presentation primitives used by more than one feature.
 
 Views receive typed state and actions. They do not perform API requests.
@@ -23,11 +24,13 @@ Views receive typed state and actions. They do not perform API requests.
 - `useCatalogDetailController` owns catalog-detail and playback view state.
 - `useCatalogContextController` loads Discogs, MusicBrainz, eBay, market, YouTube-match, and personal-match context.
 - `useCatalogEditorController` owns catalog add, correction, removal, and edit commands.
-- `usePlaybackController` owns release media, YouTube, local playback, and personal-folder workflows.
+- `useReleaseMediaController` owns Discogs images and tracklists plus YouTube discovery and selection.
+- `usePlaybackController` composes release media with local playback and personal-folder workflows.
 - `useMusicLibraryController` owns library configuration, scanning, polling, valuation updates, and Discogs collection synchronization.
 - `useBarcodeScanner` and `useCatalogNumberVoice` isolate browser-device lifecycles.
 
 Shared domain contracts live in `types.ts`; pure catalog formatting and normalization functions live in `utils/catalog.ts`.
+Feature API modules own endpoint paths and request construction. They return typed data where the HTTP response can be handled uniformly. Some workflows still inspect the response to preserve their status-specific messages and fallbacks. The generic JSON transport helper lives in `api/http.ts`.
 
 ## Data-safety invariant
 

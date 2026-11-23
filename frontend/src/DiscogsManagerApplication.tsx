@@ -1,23 +1,23 @@
 import { useRef, useState } from 'react';
-import { ArtistSummaryDialog } from './components/catalog/ArtistSummaryDialog';
-import { CatalogDetailDialog } from './components/catalog/CatalogDetailDialog';
-import { CatalogPage } from './components/catalog/CatalogPage';
-import { CatalogStatisticsPage } from './components/catalog/CatalogStatisticsPage';
-import { PersonalAlbumMappingDialog } from './components/catalog/PersonalAlbumMappingDialog';
-import { PersonalMatchNotFoundDialog } from './components/catalog/PersonalMatchNotFoundDialog';
-import { MusicLibraryPage } from './components/library/MusicLibraryPage';
-import { SearchPage } from './components/search/SearchPage';
+import { ArtistSummaryDialog } from './features/catalog/components/ArtistSummaryDialog';
+import { CatalogDetailDialog } from './features/catalog/components/CatalogDetailDialog';
+import { CatalogPage } from './features/catalog/components/CatalogPage';
+import { CatalogStatisticsPage } from './features/catalog/components/CatalogStatisticsPage';
+import { PersonalAlbumMappingDialog } from './features/catalog/components/PersonalAlbumMappingDialog';
+import { PersonalMatchNotFoundDialog } from './features/catalog/components/PersonalMatchNotFoundDialog';
+import { MusicLibraryPage } from './features/library/components/MusicLibraryPage';
+import { SearchPage } from './features/search/components/SearchPage';
 import { LocalAudioPlayer } from './components/shared/LocalAudioPlayer';
 import { ModalDialog } from './components/shared/ModalDialog';
-import { useCatalogController } from './controllers/useCatalogController';
-import { useMusicLibraryController } from './controllers/useMusicLibraryController';
-import { useDiscogsSearchController } from './controllers/useDiscogsSearchController';
-import { useCatalogDetailController } from './controllers/useCatalogDetailController';
-import { useCatalogNumberVoice } from './controllers/useCatalogNumberVoice';
-import { useBarcodeScanner } from './controllers/useBarcodeScanner';
-import { usePlaybackController } from './controllers/usePlaybackController';
-import { useCatalogEditorController } from './controllers/useCatalogEditorController';
-import { useCatalogContextController } from './controllers/useCatalogContextController';
+import { useCatalogController } from './features/catalog/controllers/useCatalogController';
+import { useMusicLibraryController } from './features/library/controllers/useMusicLibraryController';
+import { useDiscogsSearchController } from './features/search/controllers/useDiscogsSearchController';
+import { useCatalogDetailController } from './features/catalog/controllers/useCatalogDetailController';
+import { useCatalogNumberVoice } from './features/search/controllers/useCatalogNumberVoice';
+import { useBarcodeScanner } from './features/search/controllers/useBarcodeScanner';
+import { usePlaybackController } from './features/library/controllers/usePlaybackController';
+import { useCatalogEditorController } from './features/catalog/controllers/useCatalogEditorController';
+import { useCatalogContextController } from './features/catalog/controllers/useCatalogContextController';
 import { MEDIA_CONDITIONS, formatDiscogsMarketPrice } from './utils/catalog';
 import type { DiscogsResult } from './types';
 
@@ -47,19 +47,19 @@ export function DiscogsManagerApplication() {
     setSearchBarcode(barcode); setHasSearched(false); setCurrentPage(1); void searchDiscogs(barcode);
   });
   const detail = useCatalogDetailController();
-  const { viewedEntry,setViewedEntry,setYouTubePlayer,setPersonalMusicStatus,localAudioPlayer,setLocalAudioPlayer,personalArtistFolders,personalBrowsableAlbumFolders,showPersonalFolderMapping,setShowPersonalFolderMapping,selectedPersonalArtistFolderPath,selectedPersonalAlbumFolderPath,personalAlbumValidation,personalTrackNotFoundPrompt,setPersonalTrackNotFoundPrompt,personalAlbumMappingStatus } = detail;
+  const { viewedEntry,setViewedEntry,setYouTubePlayer,setPersonalMusicStatus,localAudioPlayer,setLocalAudioPlayer,albumPlaybackNotFound,setAlbumPlaybackNotFound,personalArtistFolders,personalBrowsableAlbumFolders,showPersonalFolderMapping,setShowPersonalFolderMapping,selectedPersonalArtistFolderPath,selectedPersonalAlbumFolderPath,personalAlbumValidation,personalTrackNotFoundPrompt,setPersonalTrackNotFoundPrompt,personalAlbumMappingStatus } = detail;
   const libraryController = useMusicLibraryController(activePage);
   const {
     library: musicLibrary, libraryPath: musicLibraryPath,
     setLibraryPath: setMusicLibraryPath, libraryStatus: musicLibraryStatus,
-    setLibraryStatus: setMusicLibraryStatus, savingLibrary: savingMusicLibrary,
+    savingLibrary: savingMusicLibrary,
     marketStatsBackfill, marketStatsBackfillStatus, discogsCollectionSync,
     discogsCollectionSyncStatus,
     saveLibrary: saveMusicLibrary, scanLibrary: scanMusicLibrary,
     startMarketStatsBackfill, startDiscogsCollectionSync,
   } = libraryController;
-  const playback = usePlaybackController(detail, { setItems, setCollectionStatus, setMusicLibraryStatus });
-  const { loadDetailImages, openDiscogsRelease, openDiscogsMarketplace, openTracklist, openTrackOnYouTube, findYouTubeMatches, chooseYouTubeMatch, findPersonalCopy, playLocalCopy, playNextLocalCopy, scanCatalogPersonalLocations, playPreviousLocalCopy, syncPersonalTrackLocations, savePersonalAlbumFolder, beginManualPersonalAlbumMatch, browsePersonalAlbumFolders, validatePersonalAlbumFolder } = playback;
+  const playback = usePlaybackController(detail, { setItems, setCollectionStatus });
+  const { loadDetailImages, openDiscogsRelease, openDiscogsMarketplace, openTracklist, openTrackOnYouTube, findYouTubeMatches, chooseYouTubeMatch, findPersonalCopy, playLocalCopy, playAlbum, playNextLocalCopy, playPreviousLocalCopy, syncPersonalTrackLocations, savePersonalAlbumFolder, beginManualPersonalAlbumMatch, browsePersonalAlbumFolders, validatePersonalAlbumFolder } = playback;
   const editor = useCatalogEditorController({ catalog, detail, search, setActivePage });
   const { title,setTitle,artist,setArtist,notes,setNotes,mediaCondition,setMediaCondition,estimatedValueOverride,setEstimatedValueOverride,setHasEstimatedValueOverride,entryBeingCorrected,catalogSaveAction,catalogSaveError,setCatalogSaveError,handleSave,beginMatchCorrection,cancelMatchCorrection,openEbaySearch,removeCatalogEntry,beginEstimatedValueEdit,saveEstimatedValue,beginCatalogDetailsEdit,saveCatalogDetails } = editor;
   const context = useCatalogContextController(search, detail);
@@ -131,7 +131,6 @@ export function DiscogsManagerApplication() {
         onLibraryPathChange={setMusicLibraryPath}
         onSaveLibrary={() => void saveMusicLibrary()}
         onScanLibrary={() => void scanMusicLibrary()}
-        onScanCatalogLocations={() => void scanCatalogPersonalLocations()}
         onUpdateValuations={() => void startMarketStatsBackfill()}
         onSyncDiscogsCollection={() => void startDiscogsCollectionSync()}
       />}
@@ -183,6 +182,11 @@ export function DiscogsManagerApplication() {
         status={collectionStatus}
         sort={collectionSort}
         hasOpenDetail={Boolean(viewedEntry)}
+        showPlaybackLinkStatus={Boolean(
+          libraryController.library?.lastScannedAt
+          && libraryController.library.scan.status !== 'scanning'
+          && libraryController.library.catalogLocationScan.status !== 'scanning',
+        )}
         onSearchChange={(value) => { collectionLoadInFlightRef.current = false; setCollectionSearch(value); setCollectionPage(1); setItems([]); setCollectionTotal(0); }}
         onStyleChange={(value) => { collectionLoadInFlightRef.current = false; setCollectionStyle(value); setCollectionPage(1); setItems([]); setCollectionTotal(0); }}
         onSortChange={(value) => { collectionLoadInFlightRef.current = false; setCollectionSort(value); setCollectionPage(1); setItems([]); setCollectionTotal(0); }}
@@ -209,6 +213,7 @@ export function DiscogsManagerApplication() {
             openRelease: openDiscogsRelease,
             loadImages: () => void loadDetailImages(),
             openTracklist: () => void openTracklist(),
+            playAlbum: () => void playAlbum(),
             beginDetailsEdit: beginCatalogDetailsEdit,
             beginValueEdit: beginEstimatedValueEdit,
             correctMatch: beginMatchCorrection,
@@ -243,6 +248,7 @@ export function DiscogsManagerApplication() {
         </>
       )}
       {catalogSaveError ? <ModalDialog label="Catalog save error" className="artist-summary-dialog catalog-save-error-dialog" onClose={() => setCatalogSaveError(null)}><div className="artist-summary-dialog-header"><h2>Cannot Save Catalog Entry</h2></div><p>{catalogSaveError}</p><div className="form-actions"><button type="button" autoFocus onClick={() => setCatalogSaveError(null)}>OK</button></div></ModalDialog> : null}
+      {albumPlaybackNotFound ? <ModalDialog label="Album not found in playback collection" onClose={() => setAlbumPlaybackNotFound(false)}><div className="artist-summary-dialog-header"><h2>Album Not Found</h2></div><p>Album not found in playback collection.</p><div className="form-actions"><button type="button" autoFocus onClick={() => setAlbumPlaybackNotFound(false)}>OK</button></div></ModalDialog> : null}
       </main>
       {localAudioPlayer ? <LocalAudioPlayer {...localAudioPlayer} onEnded={() => void playNextLocalCopy()} onPrevious={() => void playPreviousLocalCopy()} onNext={() => void playNextLocalCopy()} onClose={() => setLocalAudioPlayer(null)} onError={setPersonalMusicStatus} /> : null}
     </div>

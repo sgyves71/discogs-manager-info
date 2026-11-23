@@ -30,9 +30,27 @@ test.describe('Stage Personal Playback', () => {
     }
     expect(catalogLocationScan).toMatchObject({ status: 'complete', matched: 2, unmatched: 0 });
 
-    const syncResponse = await request.post(`${apiUrl}/api/cds/${stageAlbum!.id}/personal-track-matches/sync`, {
-      data: { tracks: [{ trackKey: '1|Stage Song One', title: 'Stage Song One' }] },
+    const entryId = String(stageAlbum!.id);
+    const albumsResponse = await request.get(`${apiUrl}/api/music-library/albums/find?${new URLSearchParams({ cdEntryId: entryId })}`);
+    await expect(albumsResponse).toBeOK();
+    const albums = await albumsResponse.json();
+    expect(albums).toMatchObject({
+      status: 'found',
+      albums: [{ album: 'Stage Album', trackCount: 2, matchType: 'exact' }],
+      mappedFolderPath: expect.any(String),
     });
+    const folderUrl = `${apiUrl}/api/cds/${entryId}/personal-album-folder`;
+    const folder = { folderPath: albums.albums[0].folderPath };
+    const mapping = await request.patch(folderUrl, { data: folder });
+    await expect(mapping).toBeOK();
+    expect(await mapping.json()).toMatchObject({ personalAlbumFolderPath: folder.folderPath });
+    const validation = await request.post(`${folderUrl}/validate`, { data: folder });
+    expect(validation.status()).toBe(400);
+    expect(await validation.json()).toEqual({ error: 'A scanned music library and Discogs release are required for validation.' });
+
+    const matchesUrl = `${apiUrl}/api/cds/${stageAlbum!.id}/personal-track-matches`;
+    const data = { tracks: [{ trackKey: '1|Stage Song One', title: 'Stage Song One' }] };
+    const syncResponse = await request.post(`${matchesUrl}/sync`, { data });
     await expect(syncResponse).toBeOK();
     const sync = await syncResponse.json() as { matchedCount: number; unmatchedCount: number; matches: PersonalTrackMatch[] };
     expect(sync.matchedCount).toBe(1);
@@ -40,6 +58,25 @@ test.describe('Stage Personal Playback', () => {
 
     const matches = [...sync.matches].sort((left, right) => (left.libraryTrack.trackNumber ?? 0) - (right.libraryTrack.trackNumber ?? 0));
     expect(matches.map((match) => match.libraryTrack.title)).toEqual(['Stage Song One']);
+
+    const lookup = await request.get(`${apiUrl}/api/music-library/matches/find?${new URLSearchParams({
+      cdEntryId: entryId, trackKey: data.tracks[0].trackKey, trackTitle: data.tracks[0].title,
+    })}`);
+    await expect(lookup).toBeOK();
+    expect(await lookup.json()).toMatchObject({
+      status: 'matched', matchType: 'exact', match: { libraryTrack: { title: 'Stage Song One' } },
+    });
+
+    const repeatedSync = await request.post(`${matchesUrl}/sync`, { data });
+    await expect(repeatedSync).toBeOK();
+    expect(await repeatedSync.json()).toMatchObject({ matchedCount: 1, unmatchedCount: 0, matches: [
+      { trackKey: data.tracks[0].trackKey, libraryTrack: { id: matches[0].libraryTrack.id } },
+    ] });
+    const persisted = await request.get(matchesUrl);
+    await expect(persisted).toBeOK();
+    expect(await persisted.json()).toMatchObject({ matches: [
+      { trackKey: data.tracks[0].trackKey, libraryTrack: { id: matches[0].libraryTrack.id } },
+    ] });
 
     const nextOnAlbum = await request.get(`${apiUrl}/api/music-library/playback/next?${new URLSearchParams({ cdEntryId: String(stageAlbum!.id), trackId: String(matches[0].libraryTrack.id) })}`);
     await expect(nextOnAlbum).toBeOK();

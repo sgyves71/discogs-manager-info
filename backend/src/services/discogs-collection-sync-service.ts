@@ -1,5 +1,10 @@
 import type { PrismaClient } from '@prisma/client';
-import { addDiscogsReleaseToCollection, getDiscogsCollectionReleases, getDiscogsUsername } from '../discogs.js';
+
+export type DiscogsCollectionClient = {
+  getUsername(): Promise<string>;
+  getReleases(username: string): Promise<Array<{ releaseId: number; instanceId: number | null }>>;
+  addRelease(username: string, releaseId: number): Promise<number | null>;
+};
 
 export type DiscogsCollectionSyncState = {
   status: 'idle' | 'running' | 'complete' | 'failed';
@@ -26,8 +31,7 @@ export class DiscogsCollectionSyncService {
 
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly token: string | undefined,
-    private readonly stageMode: boolean,
+    private readonly client?: DiscogsCollectionClient,
   ) {}
 
   get state(): DiscogsCollectionSyncState {
@@ -39,16 +43,16 @@ export class DiscogsCollectionSyncService {
       this.prisma.cdEntry.count({ where: { discogsId: { not: null } } }),
       this.prisma.cdEntry.count({ where: { discogsId: { not: null }, discogsCollectionSyncStatus: { in: ['SYNCED', 'ALREADY_IN_COLLECTION'] } } }),
     ]);
-    return { configured: Boolean(this.token) || this.stageMode, eligible, previouslySynced, pending: Math.max(0, eligible - previouslySynced) };
+    return { configured: Boolean(this.client), eligible, previouslySynced, pending: Math.max(0, eligible - previouslySynced) };
   }
 
   async start(): Promise<void> {
     if (this.stateValue.status === 'running') throw new Error('A Discogs collection sync is already running.');
-    if (!this.token && !this.stageMode) throw new Error('Discogs authentication is not configured.');
+    if (!this.client) throw new Error('Discogs authentication is not configured.');
 
     Object.assign(this.stateValue, initialState(), { status: 'running', startedAt: new Date().toISOString() });
     try {
-      await this.run();
+      await this.run(this.client);
       this.stateValue.status = 'complete';
       this.stateValue.completedAt = new Date().toISOString();
     } catch (error) {
@@ -59,7 +63,7 @@ export class DiscogsCollectionSyncService {
     }
   }
 
-  private async run() {
+  private async run(client: DiscogsCollectionClient) {
     const entries = await this.prisma.cdEntry.findMany({
       where: { discogsId: { not: null } },
       select: { id: true, discogsId: true, discogsCollectionSyncStatus: true },
@@ -67,20 +71,9 @@ export class DiscogsCollectionSyncService {
     });
     this.stateValue.total = entries.length;
 
-    if (this.stageMode) {
-      this.stateValue.username = 'stage-discogs-user';
-      for (const entry of entries) {
-        await this.prisma.cdEntry.update({ where: { id: entry.id }, data: { discogsCollectionSyncStatus: 'SYNCED', discogsCollectionInstanceId: entry.discogsId, discogsCollectionSyncedAt: new Date() } });
-        this.stateValue.processed += 1;
-        this.stateValue.added += 1;
-      }
-      return;
-    }
-
-    const token = this.token!;
-    const username = await getDiscogsUsername(token);
+    const username = await client.getUsername();
     this.stateValue.username = username;
-    const remoteReleases = await getDiscogsCollectionReleases(username, token);
+    const remoteReleases = await client.getReleases(username);
     const remoteByReleaseId = new Map(remoteReleases.map((release) => [release.releaseId, release.instanceId]));
 
     for (const entry of entries) {
@@ -91,7 +84,7 @@ export class DiscogsCollectionSyncService {
           await this.prisma.cdEntry.update({ where: { id: entry.id }, data: { discogsCollectionSyncStatus: 'ALREADY_IN_COLLECTION', discogsCollectionInstanceId: remoteInstanceId, discogsCollectionSyncedAt: new Date() } });
           this.stateValue.alreadyInCollection += 1;
         } else {
-          const instanceId = await addDiscogsReleaseToCollection(username, releaseId, token);
+          const instanceId = await client.addRelease(username, releaseId);
           await this.prisma.cdEntry.update({ where: { id: entry.id }, data: { discogsCollectionSyncStatus: 'SYNCED', discogsCollectionInstanceId: instanceId, discogsCollectionSyncedAt: new Date() } });
           this.stateValue.added += 1;
         }
