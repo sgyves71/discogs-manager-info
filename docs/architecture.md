@@ -15,6 +15,17 @@
 
 The startup code supplies either the live or synthetic Discogs collection client to the sync service. Both clients use the same sync workflow and database status handling. The synthetic client returns a fixture username and synthetic collection instance IDs.
 
+## Design conventions
+
+- **Single responsibility.** Routers parse requests and translate outcomes into HTTP responses. Services own workflows and their state. `MusicLibraryScanService` owns indexing, catalog matching, and progress. It reserves one scan slot before asynchronous validation and releases it after validation fails or the job finishes. Matching scores remain in plain functions.
+- **Open/closed and substitution.** Use a shared contract when behavior needs an alternate implementation. A synthetic Discogs client follows the same contract as the live client so both can drive the same sync service.
+- **Interface segregation.** Give a consumer only the operations it needs. The scan service takes a narrow subset of the Prisma client.
+- **Dependency inversion.** Pass services their collaborators explicitly. Introduce an application-owned contract where it enables a real substitution, as with Discogs sync. Keep direct Prisma queries where the persistence behavior is straightforward.
+
+`PersonalTrackMatchService` owns release track sync, single-track and album lookup, and album folder assignment and validation. Track sync and single-track lookup share candidate selection and scoring. The routes parse requests and translate outcomes into HTTP responses.
+
+Prefer classes for workflows that own state and coordinate dependencies. Prefer plain functions for transformations and scoring. When moving behavior, preserve the HTTP and persistence contracts and verify them through the existing entry points.
+
 ## Production and Stage topology
 
 ```mermaid
