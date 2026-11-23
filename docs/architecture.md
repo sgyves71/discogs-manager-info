@@ -24,6 +24,8 @@ The startup code supplies either the live or synthetic Discogs collection client
 
 `PersonalTrackMatchService` owns release track sync, single-track and album lookup, and album folder assignment and validation. Track sync and single-track lookup share candidate selection and scoring. The routes parse requests and translate outcomes into HTTP responses.
 
+Changing the configured music library root shares the scan reservation within one backend process. The root update and removal of the previous index commit in a single transaction.
+
 Prefer classes for workflows that own state and coordinate dependencies. Prefer plain functions for transformations and scoring. When moving behavior, preserve the HTTP and persistence contracts and verify them through the existing entry points.
 
 ## Production and Stage topology

@@ -1,5 +1,5 @@
 ﻿import assert from 'node:assert/strict';
-import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -16,11 +16,13 @@ function signal() {
   return { ready, release };
 }
 
-test('scan API rejects overlaps, reopens admission, and removes stale rows only in the scanned library', { timeout: 10000 }, async () => {
+test('library API serializes scans and folder changes and scopes index cleanup to the affected library', { timeout: 10000 }, async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'discogs-scan-test-'));
   const databasePath = path.join(root, 'test.db');
   const prisma = new PrismaClient({ datasources: { db: { url: `file:${databasePath.replace(/\\/g, '/')}` } } });
   try {
+    const newFolder = path.join(root, 'new-library');
+    await mkdir(newFolder);
     const db = new DatabaseSync(databasePath);
     try {
       const migrations = new URL('../../prisma/migrations/', import.meta.url);
@@ -47,6 +49,8 @@ test('scan API rejects overlaps, reopens admission, and removes stale rows only 
     const validationResult = signal();
     const cleanupEntered = signal();
     const cleanupResult = signal();
+    const folderValidationEntered = signal();
+    const folderValidationResult = signal();
     prisma.$use(async (params, next) => {
       if (params.action === 'executeRaw') {
         cleanupEntered.release(true);
@@ -55,7 +59,11 @@ test('scan API rejects overlaps, reopens admission, and removes stale rows only 
       return next(params);
     });
     let validationCalls = 0;
-    const scans = new MusicLibraryScanService(prisma, async () => {
+    const scans = new MusicLibraryScanService(prisma, async (folder) => {
+      if (folder === newFolder) {
+        folderValidationEntered.release(true);
+        return folderValidationResult.ready;
+      }
       validationCalls += 1;
       if (validationCalls === 1) return false;
       if (validationCalls !== 2) return true;
@@ -63,6 +71,7 @@ test('scan API rejects overlaps, reopens admission, and removes stale rows only 
       return validationResult.ready;
     });
     const app = express();
+    app.use(express.json());
     app.use(createMusicLibraryRouter(prisma, undefined, scans));
     const server = app.listen(0, '127.0.0.1');
     await once(server, 'listening');
@@ -71,6 +80,12 @@ test('scan API rejects overlaps, reopens admission, and removes stale rows only 
       assert.ok(address && typeof address !== 'string');
       const base = `http://127.0.0.1:${address.port}/api/music-library`;
       const start = (endpoint = '/scan') => fetch(base + endpoint, { method: 'POST', signal: AbortSignal.timeout(5000) });
+      const changeFolder = () => fetch(base, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rootPath: newFolder }),
+        signal: AbortSignal.timeout(5000),
+      });
       const rejected = await start();
       assert.equal(rejected.status, 400);
       await rejected.json();
@@ -83,6 +98,9 @@ test('scan API rejects overlaps, reopens admission, and removes stale rows only 
         const catalog = await start('/catalog-personal-locations/scan');
         assert.equal(catalog.status, 409);
         await catalog.json();
+        const folderOverlap = await changeFolder();
+        assert.equal(folderOverlap.status, 409);
+        await folderOverlap.json();
         assert.equal(validationCalls, 2);
       } finally {
         validationResult.release(true);
@@ -94,20 +112,45 @@ test('scan API rejects overlaps, reopens admission, and removes stale rows only 
       const running = await start();
       assert.equal(running.status, 409);
       await running.json();
+      const folderDuringCleanup = await changeFolder();
+      assert.equal(folderDuringCleanup.status, 409);
+      assert.deepEqual(await folderDuringCleanup.json(), { error: 'Wait for the active scan to finish before changing the music library folder.' });
       cleanupResult.release(true);
       await waitForScan(base);
       const next = await start('/catalog-personal-locations/scan');
       assert.equal(next.status, 202);
       await next.json();
       await waitForScan(base);
+      const indexed = await prisma.musicLibraryTrack.findMany({
+        select: { filePath: true }, orderBy: { filePath: 'asc' },
+      });
+      assert.deepEqual(indexed.map(({ filePath }) => filePath), ['newer.mp3', 'other-library.mp3']);
+
+      const changing = changeFolder();
+      await Promise.race([folderValidationEntered.ready, changing.then(() => assert.fail('Folder change bypassed validation'))]);
+      try {
+        const scanDuringChange = await start();
+        assert.equal(scanDuringChange.status, 409);
+        await scanDuringChange.json();
+      } finally {
+        folderValidationResult.release(true);
+        const changed = await changing;
+        assert.equal(changed.status, 200);
+        assert.deepEqual(await changed.json(), { rootPath: newFolder, lastScannedAt: null });
+      }
+      const library = await fetch(base, { signal: AbortSignal.timeout(5000) });
+      const state = await library.json();
+      assert.equal(state.trackCount, 0);
+      assert.equal(state.scan.status, 'idle');
     } finally {
       cleanupResult.release(true);
+      folderValidationResult.release(true);
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     }
     const remaining = await prisma.musicLibraryTrack.findMany({
       select: { filePath: true }, orderBy: { filePath: 'asc' },
     });
-    assert.deepEqual(remaining.map(({ filePath }) => filePath), ['newer.mp3', 'other-library.mp3']);
+    assert.deepEqual(remaining.map(({ filePath }) => filePath), ['other-library.mp3']);
   } finally {
     await prisma.$disconnect();
     await rm(root, { recursive: true, force: true });

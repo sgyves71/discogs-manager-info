@@ -13,10 +13,10 @@ export class MusicLibraryScanService {
     status: 'idle', total: 0, processed: 0, matched: 0, alreadyMapped: 0, unmatched: 0, error: null,
   };
 
-  private activeScan: 'library' | 'catalog' | undefined;
+  private activeOperation: 'library' | 'catalog' | 'folder' | undefined;
 
   constructor(
-    private readonly prisma: Pick<PrismaClient, 'cdEntry' | 'musicLibrary' | 'musicLibraryTrack' | '$executeRaw'>,
+    private readonly prisma: Pick<PrismaClient, 'cdEntry' | 'musicLibrary' | 'musicLibraryTrack' | '$executeRaw' | '$transaction'>,
     private readonly directoryExists = isDirectory,
   ) {}
 
@@ -28,7 +28,38 @@ export class MusicLibraryScanService {
     return { ...this.catalogPersonalLocationScanState };
   }
 
-  resetAfterFolderChange() {
+  async changeFolder(rootPath: string) {
+    if (this.activeOperation) {
+      const error = this.activeOperation === 'folder'
+        ? 'A music-library folder change is already in progress.'
+        : 'Wait for the active scan to finish before changing the music library folder.';
+      return { kind: 'conflict' as const, error };
+    }
+
+    this.activeOperation = 'folder';
+    try {
+      if (!await this.directoryExists(rootPath)) {
+        return { kind: 'invalid' as const, error: 'That music library folder is not available on this PC.' };
+      }
+      const library = await this.prisma.$transaction(async (db) => {
+        const existing = await db.musicLibrary.findFirst({ orderBy: { id: 'asc' } });
+        if (!existing) return db.musicLibrary.create({ data: { rootPath } });
+        const updated = await db.musicLibrary.update({
+          where: { id: existing.id }, data: { rootPath, lastScannedAt: null },
+        });
+        if (existing.rootPath !== rootPath) {
+          await db.musicLibraryTrack.deleteMany({ where: { libraryId: existing.id } });
+        }
+        return updated;
+      });
+      this.resetAfterFolderChange();
+      return { kind: 'updated' as const, rootPath: library.rootPath, lastScannedAt: library.lastScannedAt };
+    } finally {
+      this.activeOperation = undefined;
+    }
+  }
+
+  private resetAfterFolderChange() {
     Object.assign(this.libraryScanState, {
       status: 'idle', scannedFiles: 0, indexedFiles: 0, skippedFiles: 0, error: null,
     });
@@ -63,7 +94,10 @@ export class MusicLibraryScanService {
     kind: 'library' | 'catalog',
     prepare: () => Promise<{ error: string } | { completion: Promise<void>; scan: T }>,
   ): Promise<ScanRequest<T>> {
-    const activeScan = this.activeScan;
+    const activeScan = this.activeOperation;
+    if (activeScan === 'folder') {
+      return { kind: 'conflict', error: 'Wait for the music-library folder change to finish before starting a scan.' };
+    }
     if (activeScan) {
       const messages = {
         library: {
@@ -78,16 +112,16 @@ export class MusicLibraryScanService {
       return { kind: 'conflict', error: messages[kind][activeScan] };
     }
 
-    this.activeScan = kind;
+    this.activeOperation = kind;
     let releaseAfterPreparation = true;
     try {
       const result = await prepare();
       if ('error' in result) return { kind: 'invalid', error: result.error };
       releaseAfterPreparation = false;
-      void result.completion.finally(() => { this.activeScan = undefined; });
+      void result.completion.finally(() => { this.activeOperation = undefined; });
       return { kind: 'accepted', scan: result.scan };
     } finally {
-      if (releaseAfterPreparation) this.activeScan = undefined;
+      if (releaseAfterPreparation) this.activeOperation = undefined;
     }
   }
 

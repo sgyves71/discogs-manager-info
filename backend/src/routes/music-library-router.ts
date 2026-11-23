@@ -3,7 +3,7 @@ import type express from 'express';
 import path from 'node:path';
 import { createReadStream, promises as fs } from 'node:fs';
 import type { PrismaClient } from '@prisma/client';
-import { contentTypeForAudioFile, isDirectory, pathIsWithinRoot } from '../music-library.js';
+import { contentTypeForAudioFile, pathIsWithinRoot } from '../music-library.js';
 import { MusicLibraryScanService } from '../services/music-library-scan-service.js';
 import { PersonalTrackMatchService } from '../services/personal-track-match-service.js';
 
@@ -54,26 +54,22 @@ export function createMusicLibraryRouter(prisma: PrismaClient, discogsToken?: st
     });
   });
 
-  router.put('/api/music-library', async (req, res) => {
+  router.put('/api/music-library', async (req, res, next) => {
     const requestedPath = String(req.body?.rootPath || '').trim();
     if (!requestedPath || !path.isAbsolute(requestedPath)) {
       res.status(400).json({ error: 'Choose an absolute folder path for your music library.' });
       return;
     }
-    const rootPath = path.resolve(requestedPath);
-    if (!await isDirectory(rootPath)) {
-      res.status(400).json({ error: 'That music library folder is not available on this PC.' });
-      return;
+    try {
+      const result = await scans.changeFolder(path.resolve(requestedPath));
+      if (result.kind === 'updated') {
+        res.json({ rootPath: result.rootPath, lastScannedAt: result.lastScannedAt });
+        return;
+      }
+      res.status(result.kind === 'conflict' ? 409 : 400).json({ error: result.error });
+    } catch (error) {
+      next(error);
     }
-    const existing = await getMusicLibrary();
-    const library = existing
-      ? await prisma.musicLibrary.update({ where: { id: existing.id }, data: { rootPath, lastScannedAt: null } })
-      : await prisma.musicLibrary.create({ data: { rootPath } });
-    if (existing && existing.rootPath !== rootPath) {
-      await prisma.musicLibraryTrack.deleteMany({ where: { libraryId: library.id } });
-    }
-    scans.resetAfterFolderChange();
-    res.json({ rootPath: library.rootPath, lastScannedAt: library.lastScannedAt });
   });
 
   router.post('/api/music-library/scan', async (_req, res, next) => {
