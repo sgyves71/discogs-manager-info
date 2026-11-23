@@ -28,19 +28,17 @@ Discogs Manager is a personal, local-first application for cataloging a CD colle
 
 ## Development setup
 
-- Frontend development server: `http://localhost:5173`
-- Backend development server: `http://localhost:3100`
-- Start both from the repository root with `npm.cmd run dev` on this Windows machine. (`npm` is blocked in PowerShell by the current execution policy.)
+- Development uses the synthetic Stage database. Use the [Stage runbook](../e2e/README.md) to initialize it.
+- Start both watchers from the repository root with `npm.cmd run dev`. The frontend binds to loopback port 5174 and the API to loopback port 3101.
 
 ### Starting, stopping, and restarting servers
 
 - **Normal start:** From the repository root, run `npm.cmd run dev`. Keep that terminal open while developing.
 - **Normal stop:** Focus the terminal running the dev command and press `Ctrl+C` once. This stops both frontend and backend processes.
 - **Restart after source changes:** Stop the running command with `Ctrl+C`, then run `npm.cmd run dev` again.
-- **Verify services:** Open `http://localhost:5173` for the frontend. The backend health check is `http://localhost:3100/api/health`.
-- **Backend fallback:** If the TypeScript watcher fails on this machine, build the backend with `npm.cmd run build --workspace backend`, then run `node.exe backend/dist/index.js` from the repository root. Stop it with `Ctrl+C` in the terminal where it is running before rebuilding or starting it again.
-- **Home-network access:** Vite is configured with `host: '0.0.0.0'`, exposing the frontend on the local network at port `5173`. Keep this restricted to the Windows Private firewall profile; do not create router port-forwarding rules.
-- **Phone camera HTTPS:** The LAN frontend runs at `https://192.168.68.50:5173` using a local `mkcert` certificate stored in `frontend/certs/` (ignored by Git). Install `discogs-manager-rootCA.cer` from that directory as a trusted CA on the phone before using the camera scanner. Regenerate the certificate if the PC's LAN IP changes.
+- **Verify services:** Use `npm.cmd run test:e2e:api` for the Stage catalog API smoke check and `npm.cmd run test:e2e:ui` for Stage navigation.
+- **Backend fallback:** Build the backend and use `npm.cmd run stage:dev` to start the built Stage application.
+- **Phone access:** The [local IIS setup](local-iis-deployment.md) serves the personal catalog over HTTPS.
 
 ## Discogs search decisions
 
@@ -128,19 +126,36 @@ Discogs Manager is a personal, local-first application for cataloging a CD colle
 - All remote collection reads and additions use the shared authenticated Discogs scheduler (one request every 1.1 seconds). Stage uses an isolated deterministic implementation with no external requests.
 - The backend prevents duplicate catalog records by rejecting any new save or match correction that would use a Discogs release ID already present in another catalog entry. It returns HTTP 409 with a clear message and does not alter the database.
 
+## Demo 1 baseline
+
+The [Demo 1 record](demo-one.md) documents the verified reviewer journey, the initial Stage failures, and the final 41-of-41 Chromium run. Follow the [Stage runbook](../e2e/README.md) for setup and execution.
+
+## Session handoff · November 18, 2026
+
+- Completed Stage path and process checks, online SQLite backup verification, the Demo 1 manual and automated walkthroughs, and the source/test organization refactor. The production-only startup guard and refactor went live after an authorized restart. The first release attempt rolled back on a false HTML mismatch caused by line-ending handling. The retry verified IIS assets by byte hash. The production health endpoint responded again at handoff.
+- Work remains uncommitted on `agent/playback-library-solid-refactor` at `49a8aa8`. Tracked deletions include files moved into backend tests and frontend features. New routes, feature folders, tests, scripts and docs are untracked until staged. Existing local logs and audit notes were preserved.
+- Automated resets, seeds and mutation tests used disposable Stage copies. The manual add and edit left one corrected synthetic entry in the initial Stage copy. Production received verified online backups and the authorized application restart. No production schema migration, reset, seed, test write, or live Discogs account write was performed. Startup may normalize stored catalog text. This session did not compare production records before and after restart.
+- Stopped the session-owned Stage API and Vite listeners on ports 3101 and 5174 after verifying process ancestry. The later test harnesses had already stopped their alternate-port children. IIS and the production backend remain running.
+- Resume by reading this note, the [Demo 1 evidence](demo-one.md), and the [architecture map](architecture.md). Stephen should smoke-test everyday production behavior on PC and phone. Then start Demo 2 in fresh Stage with one synthetic Discogs timeout, a persisted failure assertion, and a successful retry on the same entry. Concurrent duplicate integrity and actual audio playback remain unverified.
+
+## Portfolio checkpoint · November 23, 2026
+
+- Reviewed the pending changes on `agent/playback-library-solid-refactor` from `49a8aa8`. The application now groups frontend code by catalog, library, and search, separates backend integration and domain routes, moves unit tests out of the production build, and runs collection sync through an injected Discogs client.
+- Verified in a fresh temporary source copy with no personal database, music library, live dotenv files, or certificates. The Stage launcher used a new synthetic `backend/prisma/stage.db`. The direct API and Vite proxy agreed on the synthetic fixture and instance ID. The built startup rejected a synthetic dotenv override to the personal database, and each launcher exited nonzero on an occupied port. Stage skips catalog normalization at startup so a failed bind cannot leave normalization writes.
+- `npm ci`, `npm run build`, `npm run test:unit` (39 passed, including test type checking), and `node --test scripts/tests/stage-safety.test.mjs` (3 passed, 1 Windows file-symlink skip) completed. `npm run stage:reset` seeded the temporary copy. `npm run test:e2e:stage` passed 41 Chromium tests and `npm run test:e2e:stage -- --demo-one` passed 1, both with one worker and zero retries. Demo 1 ran after the full suite and asserted that its target release was absent before creation. Both Stage listeners were stopped afterwards.
+- The backup helper and PowerShell wrapper each verified a SQLite snapshot using only the temporary synthetic database. The direct production API health probe returned `ok`. Production browsing, PC/phone behavior, and audio playback remain unverified. Computer Use could not verify the browser URL, so the separate interactive Stage walkthrough did not run. Automated Demo 1 confirmed save, edit, duplicate feedback, and persisted state.
+- Local reports are in the verification copy under `stage-full-report` and `stage-demo-one-report`. Recorded warnings include npm's dependency audit (3 moderate, 6 high, 2 critical), npm install-script notices, Vite's large chunk notice, the runner's Node deprecation, and Playwright's color environment notice. Mocked timeout logs were expected in backend tests. Git reported LF-to-CRLF conversion for some files.
+- Cleared a credential-shaped YouTube key from the tracked environment example. The earlier value remains in Git history and its validity is unverified. Keep the local audit note, logs, runtime configuration, databases, and reports outside the checkpoint. The next CI step is a clean Windows runner rehearsal with an explicit Node version and synthetic Stage start, readiness, and teardown.
+
 ## Working agreement
 
-- Treat the existing personal SQLite catalog (`backend/prisma/dev.db`, despite its historical filename) as the Production database. Do not run automated mutation tests, seed data, backfills, resets, or exploratory writes against it. Normal `npm run test:e2e` is read-only; only the explicitly reset `APP_ENV=stage` database may be mutated by automated tests.
+- Treat the existing personal SQLite catalog (`backend/prisma/dev.db`, despite its historical filename) as the Production database. Do not run automated mutation tests, seed data, backfills, resets, or exploratory writes against it. Run automated browser and API tests against verified disposable Stage data.
 - Apply OOP and SOLID pragmatically: keep domain/integration behavior in focused backend services, keep route handlers thin, prefer small typed frontend components with clear responsibilities, and refactor when a component or module becomes difficult to reason about or test.
 - Add or update focused tests with every new behavior, especially for catalog writes, background jobs, API integrations, and user-confirmation flows. Mutation coverage must remain Stage-only and external integrations must be mocked or disabled there.
 - Keep this file updated when we make a durable product, data-model, API, or workflow decision.
 - The planned permanent local deployment uses IIS for HTTPS static frontend hosting and `/api` reverse proxying, plus a Node backend Windows service bound only to `127.0.0.1`. The project-side runbook is `docs/local-iis-deployment.md`; Production SQLite backups must precede deployment and migrations.
 - The permanent local deployment is configured at `https://192.168.68.50/`: IIS serves the frontend and proxies `/api` to the automatic `DiscogsManagerBackend` NSSM service on `127.0.0.1:3100`. The development servers remain separate and are not needed for normal use.
 - `docs/development-and-release-workflow.md` is the source of truth for the branch, Stage-test, merge, migration, IIS-deployment, and recovery workflow.
-- The `e2e` npm workspace contains a Playwright foundation: a read-only catalog API smoke test and UI navigation smoke test. It targets the running local frontend/backend by default, with `E2E_APP_URL` and `E2E_API_URL` overrides. Before adding mutation coverage, create a disposable SQLite test database, seed data, and mocked Discogs/eBay responses so tests never write to the personal collection database.
-- The Stage-test environment uses the separate ignored SQLite file `backend/prisma/stage.db`, configured with `APP_ENV=stage`, `DATABASE_URL=file:./stage.db`, and port `3101` in `backend/.env.stage`. `npm run stage:reset` replaces only that disposable database, applies checked-in migration SQL, and seeds synthetic catalog/music-library records. It never reads, copies, or changes the personal `dev.db`.
-- `npm run stage:dev` starts the isolated Stage API at `http://localhost:3101` and Stage frontend at `https://localhost:5174`. It disables Discogs, eBay, and YouTube credentials so test execution cannot make external requests. Run `npm run stage:reset` while Stage is stopped, then start `stage:dev` in one terminal and run `npm run test:e2e:stage` in another; Playwright targets only those Stage ports.
-- Stage-only Playwright mutation coverage is guarded by `E2E_STAGE=true`, which is set exclusively by `npm run test:e2e:stage`. The normal `npm run test:e2e` suite remains read-only against the development catalog.
 - Stage includes a deterministic Discogs mock release (`Stage Mock Artist — Mocked CD Album`, release ID `900101`) with stable CD search results, cover art, release-level catalog information, context, image, and tracklist responses. It is active only when `APP_ENV=stage`, so tests can cover Discogs search/selection without live API requests or rate-limit usage.
 - Catalog records now persist scraped Discogs market statistics: last-sold date, low, median, high, currency, and a market-statistics checked timestamp. `POST /api/catalog-discogs-market-stats-backfill` processes catalog entries with a Discogs release ID one at a time. It records null values when a release page has no statistics section and skips a record on an HTTP/transport failure so existing data is not overwritten with a false null.
 - The market-statistics scraper uses a browser-compatible local `curl` request because Discogs Cloudflare challenges the Node HTTP client on this machine. It is intentionally paced at one public release-page request every 4.5 seconds (about 13/minute), separately from the authenticated Discogs API scheduler. It is disabled in Stage and has unit coverage for label-based Statistics parsing.

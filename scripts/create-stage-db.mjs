@@ -3,10 +3,11 @@ import { existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
+import { stageDatabasePath as resolveStageDatabase } from './stage-safety.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const prismaDirectory = path.join(root, 'backend', 'prisma');
-const stageDatabasePath = path.join(prismaDirectory, 'stage.db');
+const stageDatabasePath = resolveStageDatabase(root);
 const migrationsDirectory = path.join(prismaDirectory, 'migrations');
 
 if (process.argv.includes('--reset')) {

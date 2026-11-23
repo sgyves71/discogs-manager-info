@@ -18,7 +18,7 @@ export default defineConfig({
       : undefined,
     proxy: {
       '/api': {
-        target: process.env.VITE_API_PROXY_TARGET || 'http://localhost:3100',
+        target: process.env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:3101',
         changeOrigin: true,
       },
     },

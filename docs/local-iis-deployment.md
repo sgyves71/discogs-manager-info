@@ -43,7 +43,6 @@ Ensure `backend/.env` contains the existing private keys plus:
 NODE_ENV=production
 HOST=127.0.0.1
 PORT=3100
-DATABASE_URL=file:./dev.db
 ```
 
 From an elevated PowerShell, use NSSM. Adjust the NSSM location if needed:
@@ -96,14 +95,17 @@ powershell.exe -ExecutionPolicy Bypass -File .\scripts\deploy\deploy-iis-site.ps
 
 The deploy script first creates a timestamped SQLite backup in `backend\prisma\backups`, copies the new frontend build without deleting prior files, adds IIS configuration, and restarts the backend service. The catalog database and `.env` are never copied or overwritten.
 
+`npm run deploy:backup` uses SQLite's online backup API and verifies the snapshot with a full integrity check before publishing it. Keep the personal database URL out of dotenv. The Windows service sets production mode explicitly.
+
 ## Database Migrations
 
-Before any release that includes new Prisma migrations, stop the backend service, make the automatic database backup, then apply migrations against the same production `.env`:
+Before any release that includes new Prisma migrations, make a verified backup, stop the backend service, and explicitly scope the Prisma target to the production database:
 
 ```powershell
 Stop-Service DiscogsManagerBackend
 cd D:\VSProjects\DiscogsManager\backend
-npx prisma migrate deploy
+$env:DATABASE_URL = 'file:./dev.db'
+try { npx prisma migrate deploy } finally { Remove-Item Env:DATABASE_URL }
 Start-Service DiscogsManagerBackend
 ```
 

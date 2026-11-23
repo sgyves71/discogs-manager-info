@@ -2,9 +2,10 @@ import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
+import { stageDatabasePath as resolveStageDatabase } from './stage-safety.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const stageDatabasePath = path.join(root, 'backend', 'prisma', 'stage.db');
+const stageDatabasePath = resolveStageDatabase(root);
 const musicRoot = path.join(root, 'e2e', 'fixtures', 'music');
 const albumFolder = path.join(musicRoot, 'Stage Artist', 'Stage Album');
 
