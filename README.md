@@ -1,53 +1,31 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Discogs Manager</title>
-  <style>
-    body {
-      margin: 0; padding: 48px 24px; min-height: 100vh; box-sizing: border-box;
-      background: #111318; color: #eef1f5;
-      font: 17px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif;
-    }
-    main { max-width: 760px; margin: auto; }
-    article {
-      padding: 42px; border: 1px solid #4b5563; border-radius: 18px;
-      background: #1a1f27;
-    }
-    .eyebrow { color: #9ab6d8; font-size: 13px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
-    h1 { font-size: 42px; line-height: 1.15; margin: 8px 0 16px; }
-    h2 { margin-top: 32px; font-size: 20px; }
-    p, li { color: #c7d0dc; }
-    footer { margin-top: 32px; color: #9aa6b5; font-size: 14px; }
-  </style>
-</head>
-<body>
-  <main>
-    <article>
-      <div class="eyebrow">Private, local-first project</div>
-      <h1>Discogs Manager</h1>
+# Discogs Manager
 
-      <p>Discogs Manager is a personal application for cataloging, organizing, and appraising a private CD collection. It runs locally on its owner’s home computer and is not a public marketplace, storefront, or consumer-facing service.</p>
+Discogs Manager is a local-first application for cataloging a CD collection. It associates physical CDs with specific Discogs releases, supports barcode lookup and catalog corrections, and keeps the collection database and music files on the owner's computer.
 
-      <h2>What it does</h2>
-      <ul>
-        <li>Builds a searchable catalog of a personal CD collection.</li>
-        <li>Identifies releases by artist, album title, barcode, and catalog number.</li>
-        <li>Uses Discogs catalog data to associate each physical CD with its specific release information.</li>
-        <li>Stores collection details locally, including release year, country, label, catalog number, condition, and personal notes.</li>
-        <li>Allows corrections when a CD is initially matched to the wrong release.</li>
-        <li>Supports phone-based barcode scanning over the owner’s home network.</li>
-      </ul>
+The engineering focus is testing the real application end to end while keeping test data and external services isolated. The application uses React and TypeScript, an Express API, and Prisma with SQLite. Playwright exercises the UI and API against synthetic Stage data.
 
-      <h2>Market-value research</h2>
-      <p>The owner may use relevant market listing data to help estimate collection value. Catalog-number matching is used where available to improve the relevance of CD listing searches. The project is intended for personal collection management and appraisal research only.</p>
+## Start here
 
-      <h2>Privacy and security</h2>
-      <p>This public page exists only to describe the project. The application itself, collection database, scanned barcode data, account credentials, and personal collection information remain private and are not hosted on this site.</p>
+| Evidence | What to look for |
+| --- | --- |
+| [Architecture](docs/architecture.md) | Follow the UI, API, and database boundaries. See how Stage validates the database path and confirms that direct API calls and browser traffic reach the same backend. |
+| [Demo 1: Catalog workflow](docs/demo-one.md) | Find and save a release, edit it, reject a duplicate with HTTP 409, and read the catalog again to verify one corrected record. |
+| [Demo 2: Discogs sync recovery](e2e/README.md#demo-2-discogs-sync-recovery) | A fixture times out before adding a release. Verify the saved failure, retry from the UI, and confirm the same record syncs without adding a second copy. |
+| [Passing Windows CI run](https://github.com/sgyves71/discogs-manager-info/actions/runs/45317291925) | Both demos run in separate Windows jobs with fresh databases. Each job runs the build, backend tests, and Stage safety checks. |
+| [Controlled CI failure](https://github.com/sgyves71/discogs-manager-info/actions/runs/45295006017) | An intentionally incorrect assertion fails on a separate branch. GitHub still collects the Playwright report, trace, and Stage logs. Artifacts have a seven-day retention period. |
 
-      <footer>Discogs Manager is a private, non-commercial personal-use project.</footer>
-    </article>
-  </main>
-</body>
-</html>
+## Run the demos on Windows
+
+Use a clean checkout with Node 24.18.0 and ports 3101 and 5174 available. From the repository root:
+
+```powershell
+npm.cmd ci
+npm.cmd run build
+npm.cmd run install:browsers --workspace e2e
+powershell.exe -NoProfile -File scripts/verify-ci-stage.ps1 -Demo one
+powershell.exe -NoProfile -File scripts/verify-ci-stage.ps1 -Demo two
+```
+
+Each invocation seeds a fresh synthetic database, verifies Stage identity, and stops its servers after the test. The demos require no live account credentials. See the [Stage runbook](e2e/README.md) for the regression suite and manual setup.
+
+Demo 1 covers sequential duplicate rejection. Concurrent catalog insertion, live integrations, and production playback are outside this demo evidence. The source is public. The personal collection and production installation stay local.
