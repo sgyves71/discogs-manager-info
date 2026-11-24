@@ -1,3 +1,8 @@
+param(
+  [ValidateSet('one', 'two')]
+  [string]$Demo = 'one'
+)
+
 $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $PSScriptRoot
@@ -49,8 +54,8 @@ try {
   if (!$ready) { throw 'Stage readiness timed out. See the server logs.' }
   Write-Output 'Verified direct and proxied synthetic Stage identity.'
 
-  npm.cmd run test:e2e:stage -- --demo-one
-  if ($LASTEXITCODE -ne 0) { throw "Demo 1 failed with exit code $LASTEXITCODE." }
+  npm.cmd run test:e2e:stage -- "--demo-$Demo"
+  if ($LASTEXITCODE -ne 0) { throw "Demo $Demo failed with exit code $LASTEXITCODE." }
 } finally {
   try {
     foreach ($server in $servers) {
