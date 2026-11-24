@@ -9,7 +9,12 @@ permissions:
 
 jobs:
   verify:
+    name: Stage demo ${{ matrix.demo }}
     runs-on: windows-2025
+    strategy:
+      fail-fast: false
+      matrix:
+        demo: [one, two]
     timeout-minutes: 15
     defaults:
       run:
@@ -32,13 +37,13 @@ jobs:
         run: node --test scripts/tests/stage-safety.test.mjs
       - name: Install Chromium
         run: npm.cmd run install:browsers --workspace e2e
-      - name: Verify Demo 1 on synthetic Stage
-        run: ./scripts/verify-ci-stage.ps1
+      - name: Verify demo on synthetic Stage
+        run: ./scripts/verify-ci-stage.ps1 -Demo ${{ matrix.demo }}
       - name: Upload Stage diagnostics
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: stage-demo-one
+          name: stage-demo-${{ matrix.demo }}
           retention-days: 7
           if-no-files-found: ignore
           path: |

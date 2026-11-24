@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { stageBackendConfig } from '../../scripts/stage-safety.mjs';
 import { PrismaClient } from '@prisma/client';
 import { getDiscogsReleaseCover } from './discogs.js';
-import { createDiscogsCollectionClient, stageDiscogsCollectionClient } from './discogs-collection-client.js';
+import { createDiscogsCollectionClient, createStageDiscogsCollectionClient } from './discogs-collection-client.js';
 import { normalizeStoredCatalogText } from './services/catalog-text.js';
 import { createCatalogRouter } from './routes/catalog-router.js';
 import { createMusicLibraryRouter } from './routes/music-library-router.js';
@@ -76,7 +76,7 @@ const catalogStatistics = new CatalogStatisticsService({
   findStatisticsEntries: () => prisma.cdEntry.findMany({ select: { style: true, year: true } }),
 });
 const collectionClient = isStageEnvironment
-  ? stageDiscogsCollectionClient
+  ? createStageDiscogsCollectionClient()
   : discogsToken ? createDiscogsCollectionClient(discogsToken) : undefined;
 const discogsCollectionSync = new DiscogsCollectionSyncService(prisma, collectionClient);
 const discogsCoverLookup = new DiscogsCoverLookupService((releaseId) => getDiscogsReleaseCover(releaseId, discogsToken!));

@@ -90,6 +90,10 @@ export class DiscogsCollectionSyncService {
         }
       } catch (error) {
         this.stateValue.failed += 1;
+        if (error instanceof Error && (error.name === 'TimeoutError' ||
+            ('code' in error && (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT')))) {
+          this.stateValue.error = 'Discogs took too long to respond.';
+        }
         await this.prisma.cdEntry.update({ where: { id: entry.id }, data: { discogsCollectionSyncStatus: 'FAILED' } });
         console.error(`Discogs collection sync failed for release ${releaseId}:`, error);
       } finally {

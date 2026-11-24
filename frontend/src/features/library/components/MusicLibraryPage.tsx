@@ -21,6 +21,10 @@ export function MusicLibraryPage({
   discogsCollectionSync, discogsCollectionSyncStatus, onLibraryPathChange, onSaveLibrary, onScanLibrary,
   onUpdateValuations, onSyncDiscogsCollection,
 }: MusicLibraryPageProps) {
+  const sync = discogsCollectionSync?.sync;
+  const syncRunning = sync?.status === 'running';
+  const canRetrySync = sync?.status === 'failed' || (sync?.status === 'complete' && sync.failed > 0);
+
   return <>
     <h1>Music Library</h1>
     <p>Connect the folder containing your personally ripped and tagged music. Files remain on this PC and are only streamed locally when you choose to play one.</p>
@@ -58,10 +62,13 @@ export function MusicLibraryPage({
       <p>Add your cataloged Discogs releases to your authenticated Discogs Collection. The app checks what you already have first and never removes remote entries.</p>
       {!discogsCollectionSync?.configured ? <p className="hint">Discogs authentication is not configured.</p> : <>
         <p className="hint">{discogsCollectionSync.eligible.toLocaleString()} catalog releases can sync · {discogsCollectionSync.previouslySynced.toLocaleString()} previously recorded as synced · up to {discogsCollectionSync.pending.toLocaleString()} pending.</p>
-        <div className="form-actions"><button type="button" onClick={onSyncDiscogsCollection} disabled={discogsCollectionSync.sync.status === 'running'}>{discogsCollectionSync.sync.status === 'running' ? 'Syncing Discogs Collection...' : 'Sync Catalog to Discogs'}</button></div>
+        <div className="form-actions"><button type="button" onClick={onSyncDiscogsCollection} disabled={syncRunning}>{syncRunning ? 'Syncing Discogs Collection...' : canRetrySync ? 'Retry Discogs Sync' : 'Sync Catalog to Discogs'}</button></div>
         {discogsCollectionSync.sync.status === 'running' ? <p className="hint">Progress: {discogsCollectionSync.sync.processed.toLocaleString()} / {discogsCollectionSync.sync.total.toLocaleString()} · {discogsCollectionSync.sync.added.toLocaleString()} added · {discogsCollectionSync.sync.alreadyInCollection.toLocaleString()} already in Discogs.</p> : null}
         {discogsCollectionSync.sync.status === 'complete' ? <p className="hint">Sync complete{discogsCollectionSync.sync.username ? ` for ${discogsCollectionSync.sync.username}` : ''}: {discogsCollectionSync.sync.added.toLocaleString()} added · {discogsCollectionSync.sync.alreadyInCollection.toLocaleString()} already in Discogs · {discogsCollectionSync.sync.failed.toLocaleString()} failed.</p> : null}
-        {discogsCollectionSync.sync.status === 'failed' ? <p className="hint">Sync failed: {discogsCollectionSync.sync.error || 'Unknown error.'}</p> : null}
+        {canRetrySync ? <p className="hint" role="alert">
+          {sync.status === 'failed' ? sync.error || 'Discogs sync failed.' : sync.error || 'Some releases could not sync.'}{' '}
+          Retry sync to check your Discogs collection and add missing releases.
+        </p> : null}
       </>}
       {discogsCollectionSyncStatus ? <p className="hint">{discogsCollectionSyncStatus}</p> : null}
     </div>
