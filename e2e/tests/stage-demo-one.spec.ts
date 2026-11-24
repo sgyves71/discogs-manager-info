@@ -36,7 +36,7 @@ test('Demo 1 finds, adds, edits, and rejects a duplicate release', { tag: '@demo
     await selectRelease(page);
     const save = page.getByRole('button', { name: 'Add to Catalog', exact: true });
     const [created] = await Promise.all([page.waitForResponse(isCreate), save.click()]);
-    expect(created.status()).toBe(201);
+    expect(created.status()).toBe(418) // Intentional hosted diagnostics check;
     const entry = await created.json();
     entryId = entry.id;
     expect(entry).toMatchObject({ discogsId: releaseId, title, mediaCondition: 'Very Good Plus (VG+)' });
