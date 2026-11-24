@@ -15,16 +15,28 @@ test('parseDiscogsMarketStats Extracts Release Statistics by Label', () => {
   assert.equal(result.currency, 'USD');
 });
 
+// User-observed Discogs empty-state DOM, with the release-specific links removed.
 const emptyStatistics = `
-  <section id="release-stats"><ul>
-    <li><span>Last Sold:</span><span>Never</span></li>
-    <li><span>Low:</span><span>&mdash;</span></li>
-    <li><span>Median:</span><span>N/A</span></li>
-    <li><span>High:</span><span>-</span></li>
-  </ul></section>
+  <section id="release-stats" class="section_Odw8o open_FaEHZ">
+    <header class="header_BgEm1"><h2>Statistics</h2></header>
+    <div class="content_ETGfR"><div class="items_PQSxS">
+      <ul>
+        <li><span class="name_qjn4_">Have:</span><a>9</a></li>
+        <li><span class="name_qjn4_">Want:</span><a>24</a></li>
+        <li><span class="name_qjn4_">Avg Rating:</span><span>-- / 5</span></li>
+        <li><span class="name_qjn4_">Ratings:</span><a>0</a></li>
+      </ul>
+      <ul>
+        <li><span class="name_qjn4_">Last Sold:</span><span>Never</span></li>
+        <li><span class="name_qjn4_">Low:</span><span>--</span></li>
+        <li><span class="name_qjn4_">Median:</span><span>--</span></li>
+        <li><span class="name_qjn4_">High:</span><span>--</span></li>
+      </ul>
+    </div></div>
+  </section>
 `;
 
-test('parseDiscogsMarketStats accepts explicit empty values in the known layout', () => {
+test('parseDiscogsMarketStats accepts the observed Discogs no-sales markup', () => {
   assert.deepEqual(parseDiscogsMarketStats(emptyStatistics), {
     lastSoldAt: null, low: null, median: null, high: null, currency: null,
   });
@@ -36,7 +48,7 @@ test('parseDiscogsMarketStats rejects an unexpected page even if it was fetched 
 });
 
 test('parseDiscogsMarketStats rejects changed value formats', () => {
-  assert.throws(() => parseDiscogsMarketStats(emptyStatistics.replace('N/A', 'Unavailable for 3 regions')), /market price format/);
+  assert.throws(() => parseDiscogsMarketStats(emptyStatistics.replace('<span>--</span>', '<span>Unavailable for 3 regions</span>')), /market price format/);
   assert.throws(() => parseDiscogsMarketStats(emptyStatistics.replace('Never', '<time datetime="unknown">Unknown</time>')), /last-sold date/);
 });
 
