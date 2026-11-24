@@ -173,7 +173,13 @@ export function createCatalogRouter(
       return;
     }
 
-    // Intentional Demo 3 regression: bypass the duplicate check on create.
+    if (discogsId) {
+      const existingDiscogsEntry = await findDuplicateRelease(discogsId);
+      if (existingDiscogsEntry) {
+        res.status(409).json({ error: duplicateReleaseError });
+        return;
+      }
+    }
 
     const hasManualEstimatedValue = typeof estimatedValueOverride === 'number'
       && Number.isFinite(estimatedValueOverride)
