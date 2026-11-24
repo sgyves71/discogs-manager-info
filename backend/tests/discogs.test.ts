@@ -155,6 +155,21 @@ test('getDiscogsReleaseCatalogInfo Uses Release Labels and Excludes Companies', 
   });
 });
 
+test('release catalog metadata reads the barcode descriptions returned by Discogs', async () => {
+  const info = await getDiscogsReleaseCatalogInfo(15707771, undefined, async () => ({
+    data: {
+      identifiers: [
+        { type: 'Barcode', description: 'Scanned', value: '0077774864022' },
+        { type: 'Barcode', description: 'Text', value: '0 7777-48640-2 2' },
+        { type: 'Barcode', value: '0123456789012' },
+        { type: 'Matrix / Runout', value: 'DIDX-002539 1' },
+      ],
+    },
+  } as never));
+
+  assert.equal(info.barcode, '(Text): 0 7777-48640-2 2 · (Scanned): 0077774864022 · 0123456789012');
+});
+
 test('normalizeDiscogsResult Handles Non-String Label and Country Values', () => {
   const result = normalizeDiscogsResult({
     id: 456,

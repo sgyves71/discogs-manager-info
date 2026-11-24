@@ -1,6 +1,10 @@
 import { request, type FullConfig } from '@playwright/test';
 
-export default async function verifyStage(config: FullConfig) {
+export default function verifyMockStage(config: FullConfig) {
+  return verifyStage(config, 'mock');
+}
+
+export async function verifyStage(config: FullConfig, mode: 'mock' | 'live-read') {
   if (process.env.E2E_STAGE !== 'true') {
     throw new Error('Browser and API tests require verified Stage. Use npm run test:e2e:stage.');
   }
@@ -21,6 +25,11 @@ export default async function verifyStage(config: FullConfig) {
       if (identity.environment !== 'stage' || identity.fixture !== 'synthetic-catalog-v1' ||
           typeof identity.instance !== 'string' || !identity.instance) {
         throw new Error('Stage identity did not confirm the synthetic catalog.');
+      }
+      if (identity.discogsMode !== mode) {
+        throw new Error(mode === 'mock'
+          ? 'Stage tests require mocked Discogs. Stop Stage and use npm run stage:dev.'
+          : 'Live smoke tests require live-read Stage. Stop Stage and use npm run stage:live-read.');
       }
       return identity.instance;
     }));

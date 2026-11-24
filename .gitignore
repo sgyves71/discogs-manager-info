@@ -23,3 +23,4 @@ e2e/debug.log
 backend/.env.stage
 backend/prisma/stage.db
 backend/prisma/stage.db-journal
+e2e/live-test-results/

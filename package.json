@@ -14,6 +14,8 @@
     "stage:db:create": "node scripts/create-stage-db.mjs",
     "stage:reset": "node scripts/create-stage-db.mjs --reset && node scripts/seed-stage-db.mjs",
     "stage:dev": "concurrently -n stage-frontend,stage-backend -c blue,green \"node scripts/start-stage-frontend.mjs\" \"node scripts/start-stage-backend.mjs\"",
+    "stage:live-read": "concurrently --kill-others -n stage-frontend,stage-backend -c blue,green \"node scripts/start-stage-frontend.mjs\" \"node scripts/start-stage-backend.mjs --live-read\"",
+    "test:e2e:stage:live": "node scripts/run-stage-e2e.mjs --live-read",
     "test:e2e:stage": "node scripts/run-stage-e2e.mjs",
     "postinstall": "npm run prisma:generate --workspace backend"
   },

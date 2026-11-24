@@ -1794,3 +1794,12 @@ button:disabled {
     height: 72px;
   }
 }
+
+.stage-mode {
+  margin: 0;
+  padding: 0.45rem 1rem;
+  background: #24334a;
+  color: #fff;
+  text-align: center;
+  font-size: 0.875rem;
+}

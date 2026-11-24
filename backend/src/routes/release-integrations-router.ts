@@ -1,3 +1,4 @@
+import type { StageDiscogsReader } from '../stage-discogs-reader.js';
 import { Router } from 'express';
 import type { PrismaClient } from '@prisma/client';
 import { getDiscogsPriceSuggestions, getDiscogsReleaseCatalogInfo, getDiscogsReleaseContext, getDiscogsReleaseImages, getDiscogsReleaseTracklist, searchDiscogsReleases } from '../discogs.js';
@@ -12,13 +13,14 @@ import { getStageMusicBrainzCatalogContext, searchStageMusicBrainz } from '../st
 
 export function createReleaseIntegrationsRouter({
   prisma, catalogEnrichment, discogsCoverLookup, isStageEnvironment, discogsToken,
-  ebayClientId, ebayClientSecret, ebayMarketplaceId, youtubeApiKey,
+  stageDiscogsReader, ebayClientId, ebayClientSecret, ebayMarketplaceId, youtubeApiKey,
 }: {
   prisma: PrismaClient;
   catalogEnrichment: CatalogEnrichmentService;
   discogsCoverLookup: DiscogsCoverLookupService;
   isStageEnvironment: boolean;
   discogsToken?: string;
+  stageDiscogsReader?: StageDiscogsReader;
   ebayClientId?: string;
   ebayClientSecret?: string;
   ebayMarketplaceId: string;
@@ -38,6 +40,14 @@ export function createReleaseIntegrationsRouter({
       return;
     }
 
+    if (stageDiscogsReader) {
+      try {
+        res.json(await stageDiscogsReader.search({ query, artist, releaseTitle, catalogNumber, barcode }));
+      } catch {
+        res.status(502).json({ error: 'Stage live-read search failed. Check the Discogs credential and service availability.' });
+      }
+      return;
+    }
     if (isStageEnvironment) {
       res.json(searchStageDiscogsReleases({ query, artist, title: releaseTitle, catalogNumber, barcode }));
       return;
@@ -247,6 +257,14 @@ export function createReleaseIntegrationsRouter({
     const releaseId = Number(req.params.id);
     if (!Number.isInteger(releaseId) || releaseId <= 0) {
       res.status(400).json({ error: 'A valid Discogs release ID is required.' });
+      return;
+    }
+    if (stageDiscogsReader) {
+      try {
+        res.json(await stageDiscogsReader.catalogInfo(releaseId));
+      } catch {
+        res.status(502).json({ error: 'Stage live-read could not load release metadata from Discogs.' });
+      }
       return;
     }
     if (isStageEnvironment) {

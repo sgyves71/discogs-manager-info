@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { stageBackendConfig } from '../../scripts/stage-safety.mjs';
 import { PrismaClient } from '@prisma/client';
+import { createStageDiscogsReader } from './stage-discogs-reader.js';
 import { getDiscogsReleaseCover } from './discogs.js';
 import { createDiscogsCollectionClient, createStageDiscogsCollectionClient } from './discogs-collection-client.js';
 import { normalizeStoredCatalogText } from './services/catalog-text.js';
@@ -23,6 +24,7 @@ import { createCatalogEnrichmentRouter } from './routes/catalog-enrichment-route
 import { createPlaybackRouter } from './routes/playback-router.js';
 import { PlaybackQueueService } from './services/playback-queue-service.js';
 
+const launchedDiscogsMode = process.env.STAGE_DISCOGS_MODE ?? 'mock';
 const productionStartup = process.env.NODE_ENV === 'production';
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env') });
@@ -31,12 +33,21 @@ const stageConfig = isStageEnvironment ? (() => {
   dotenv.config({ path: path.resolve(process.cwd(), 'backend/.env.stage'), override: true });
   const root = fileURLToPath(new URL('../../', import.meta.url));
   const config = stageBackendConfig(root, process.env);
-  // Stage is deliberately isolated from external integrations and personal data.
+  if (launchedDiscogsMode !== 'mock' && launchedDiscogsMode !== 'live-read') {
+    throw new Error('Invalid Stage Discogs mode. Use a Stage launcher.');
+  }
+  if (process.env.STAGE_DISCOGS_MODE !== undefined && process.env.STAGE_DISCOGS_MODE !== launchedDiscogsMode) {
+    throw new Error('Select the Stage Discogs mode with the launcher. Remove STAGE_DISCOGS_MODE from environment files.');
+  }
+  // Keep production integration credentials out of both Stage modes.
   process.env.DISCOGS_TOKEN = '';
   process.env.EBAY_CLIENT_ID = '';
   process.env.EBAY_CLIENT_SECRET = '';
   process.env.YOUTUBE_API_KEY = '';
-  return config;
+  const discogsReader = launchedDiscogsMode === 'live-read'
+    ? createStageDiscogsReader(process.env.STAGE_DISCOGS_READ_TOKEN)
+    : undefined;
+  return { ...config, discogsMode: launchedDiscogsMode, discogsReader };
 })() : undefined;
 if (!stageConfig) {
   if (!productionStartup) {
@@ -75,7 +86,7 @@ const catalogStatistics = new CatalogStatisticsService({
   },
   findStatisticsEntries: () => prisma.cdEntry.findMany({ select: { style: true, year: true } }),
 });
-const collectionClient = isStageEnvironment
+const collectionClient = stageConfig?.discogsMode === 'mock'
   ? createStageDiscogsCollectionClient()
   : discogsToken ? createDiscogsCollectionClient(discogsToken) : undefined;
 const discogsCollectionSync = new DiscogsCollectionSyncService(prisma, collectionClient);
@@ -99,7 +110,7 @@ if (stageConfig) {
         where: { artist: 'Stage Artist', discogsId: { in: [900001, 900002] } },
       });
       res.set('Cache-Control', 'no-store').status(fixtures === 2 ? 200 : 503)
-        .json({ environment: 'stage', fixture: fixtures === 2 ? 'synthetic-catalog-v1' : null, instance });
+        .json({ environment: 'stage', fixture: fixtures === 2 ? 'synthetic-catalog-v1' : null, instance, discogsMode: stageConfig.discogsMode });
     } catch {
       res.status(503).json({ error: 'Stage fixtures are unavailable.' });
     }
@@ -111,6 +122,7 @@ app.use(createDiscogsSyncRouter(discogsCollectionSync));
 app.use(createCatalogRouter(prisma, catalogEnrichment, localAlbumArtService, discogsToken));
 app.use(createReleaseIntegrationsRouter({
   prisma, catalogEnrichment, discogsCoverLookup, isStageEnvironment, discogsToken,
+  stageDiscogsReader: stageConfig?.discogsReader,
   ebayClientId, ebayClientSecret, ebayMarketplaceId, youtubeApiKey,
 }));
 

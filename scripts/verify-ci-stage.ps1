@@ -46,6 +46,7 @@ try {
     }
     if ($direct.environment -ne 'stage' -or $proxied.environment -ne 'stage' -or
         $direct.fixture -ne 'synthetic-catalog-v1' -or $proxied.fixture -ne 'synthetic-catalog-v1' -or
+        $direct.discogsMode -ne 'mock' -or $proxied.discogsMode -ne 'mock' -or
         !$direct.instance -or $direct.instance -ne $proxied.instance) {
       throw 'The direct API and frontend proxy did not identify the same synthetic Stage instance.'
     }

@@ -72,10 +72,16 @@ export function useDiscogsSearchController() {
       Object.entries(values).forEach(([key, value]) => { if (value) params.set(key, value); });
       const response = await releaseSearchApi.search(params);
       const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Search failed. Please try again.');
       const normalized = (Array.isArray(data) ? data : []).sort((left: DiscogsResult, right: DiscogsResult) => left.year == null ? (right.year == null ? 0 : 1) : right.year == null ? -1 : left.year - right.year);
       setResults(normalized); setCoverImages({}); requestedCoverIds.current.clear(); detailsCache.current.clear(); setSelectedRelease(null); setCatalogInfoStatus('');
       setStatus(normalized.length ? 'Choose the version you own.' : 'No matches found.');
-    } catch { setResults([]); setSelectedRelease(null); setCatalogInfoStatus(''); setStatus('Search failed. Please try again.'); }
+    } catch (error) {
+      setResults([]);
+      setSelectedRelease(null);
+      setCatalogInfoStatus('');
+      setStatus(error instanceof Error ? error.message : 'Search failed. Please try again.');
+    }
     finally { setLoading(false); }
   };
 
