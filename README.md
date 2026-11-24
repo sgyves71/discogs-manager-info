@@ -22,6 +22,8 @@ The engineering focus is testing the real application end to end while keeping t
 | [Passing Windows CI run](https://github.com/sgyves71/discogs-manager-info/actions/runs/45317291925) | Both demos run in separate Windows jobs with fresh databases. Each job runs the build, backend tests, and Stage safety checks. |
 | [Controlled CI failure](https://github.com/sgyves71/discogs-manager-info/actions/runs/45295006017) | An intentionally incorrect assertion fails on a separate branch. GitHub still collects the Playwright report, trace, and Stage logs. Artifacts have a seven-day retention period. |
 
+[Demo 3: Catalog integrity gate](docs/demo-three.md) shows an application regression caught by the unchanged browser test, the repair, and the evidence generated from both hosted runs.
+
 ## Run the demos on Windows
 
 Use a clean checkout with Node 24.18.0 and ports 3101 and 5174 available. From the repository root:
