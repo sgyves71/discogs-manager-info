@@ -20,6 +20,15 @@ Use the [Stage runbook](../e2e/README.md). Reset while Stage is stopped. The syn
 
 Unit and service checks cover data interpretation and integration behavior with fixtures. The existing API suite covers required fields, defaults, editing, status codes and deletion. The browser journey exercises the real Stage UI/API path and asserts the saved state via a separate request after the duplicate attempt. A separate read-only SQLite check verified that teardown left only the two seed records.
 
+## Hosted Windows CI evidence (November 23, 2026)
+
+| Run | Verified outcome |
+| --- | --- |
+| [Passing pull request run](https://github.com/sgyves71/discogs-manager-info/actions/runs/45284156544) | The build and type checks passed, all 40 backend tests and all 4 Stage safety checks passed, and Demo 1 passed with one Chromium worker and zero retries. GitHub uploaded the Playwright report and Stage logs. |
+| [Controlled failure after merge](https://github.com/sgyves71/discogs-manager-info/actions/runs/45295006017) | The isolated test branch deliberately expected HTTP 418 for the save. Stage returned HTTP 201, so CI failed at the intended assertion and still uploaded diagnostics. The downloaded artifact contained the HTML report, Playwright trace, and Stage server logs. The job log showed both Stage process trees stopped. |
+
+For the passing run, follow the add, edit, duplicate rejection, and API persistence steps in the report. For the controlled failure, open the failing assertion and compare its expected status with the API response. The failure was confined to a separate test branch. Both runs used synthetic Stage data and confirmed that direct API calls and the frontend proxy reached the same seeded instance before running the browser test. Run links document the result. Artifacts remain available within the workflow's seven-day retention period.
+
 ## Verified baseline · November 18, 2026
 
 Reviewed branch `agent/playback-library-solid-refactor` at `49a8aa8`. The IIS page and proxied health endpoint returned 200, as did the direct running API health endpoint. Production checks were limited to those HTTP responses. The development and Stage ports were initially available. No personal UI workflow or previous-release parity was verified.
