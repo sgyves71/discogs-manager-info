@@ -88,6 +88,7 @@ type DiscogsReleaseDetails = {
   }>;
   identifiers?: Array<{
     type?: string | null;
+    description?: string | null;
     value?: string | null;
   }>;
   notes?: string | null;
@@ -202,6 +203,7 @@ export async function searchDiscogsReleases(
   releaseTitle?: string,
   catalogNumber?: string,
   barcode?: string,
+  requireAllFormats = false,
 ): Promise<NormalizedDiscogsResult[]> {
   if (!query.trim() && !artist?.trim() && !releaseTitle?.trim() && !catalogNumber?.trim() && !barcode?.trim()) {
     return [];
@@ -226,9 +228,13 @@ export async function searchDiscogsReleases(
         },
         timeout: 6000,
       }));
+      if (requireAllFormats && !Array.isArray(response.data?.results)) {
+        throw new Error('Discogs returned an unexpected search response.');
+      }
       const results = Array.isArray(response.data?.results) ? response.data.results : [];
       return results.map((result: DiscogsSearchResult) => normalizeDiscogsResult(result));
     } catch (error) {
+      if (requireAllFormats) throw error;
       console.error(`Discogs ${format} search failed:`, error);
       return [];
     }
@@ -277,13 +283,29 @@ export async function getDiscogsReleaseCatalogInfo(
   const labelNames = [...new Set(labels.map((label) => label.name?.trim()).filter((value): value is string => Boolean(value)))];
   const catalogNumbers = [...new Set(labels.map((label) => label.catno?.trim()).filter((value): value is string => Boolean(value)))];
   const barcodeIdentifiers = response.data?.identifiers ?? [];
-  const barcodeParts = ['Barcode (Text)', 'Barcode (Scanned)']
-    .map((type) => {
-      const values = [...new Set(barcodeIdentifiers
-        .filter((identifier) => identifier.type?.trim() === type)
-        .map((identifier) => identifier.value?.trim())
-        .filter((value): value is string => Boolean(value)))];
-      return values.length ? `${type.replace('Barcode ', '')}: ${values.join(', ')}` : null;
+  const barcodes = new Map<string, Set<string>>([
+    ['Text', new Set()],
+    ['Scanned', new Set()],
+    ['', new Set()],
+  ]);
+  for (const identifier of barcodeIdentifiers) {
+    const type = identifier.type?.trim();
+    const value = identifier.value?.trim();
+    if (!value) continue;
+
+    if (type === 'Barcode') {
+      const category = identifier.description?.trim().toLowerCase();
+      const group = category === 'text' ? 'Text' : category === 'scanned' ? 'Scanned' : '';
+      barcodes.get(group)?.add(value);
+    } else if (type === 'Barcode (Text)' || type === 'Barcode (Scanned)') {
+      barcodes.get(type === 'Barcode (Text)' ? 'Text' : 'Scanned')?.add(value);
+    }
+  }
+  const barcodeParts = [...barcodes]
+    .map(([category, values]) => {
+      if (!values.size) return null;
+      const text = [...values].join(', ');
+      return category ? `(${category}): ${text}` : text;
     })
     .filter((value): value is string => Boolean(value));
   return {

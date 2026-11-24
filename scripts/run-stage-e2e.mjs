@@ -8,6 +8,7 @@ const protocol = ['lan-cert.pem', 'lan-key.pem'].every(
   (name) => existsSync(path.join(root, 'frontend', 'certs', name)),
 ) ? 'https' : 'http';
 const filters = {
+  '--live-read': ['--config', 'playwright.live.config.ts'],
   '--demo-one': ['stage-demo-one.spec.ts'],
   '--demo-two': ['stage-demo-two.spec.ts'],
   '--ui-smoke': ['navigation.spec.ts'],
@@ -16,7 +17,7 @@ const filters = {
 const args = filters[process.argv[2]] ?? ['--grep-invert', '@demo-'];
 const child = spawn('cmd.exe', ['/c', 'npm.cmd', 'run', 'test', '--workspace', 'e2e', '--', ...args], {
   cwd: root,
-  env: { ...process.env, E2E_APP_URL: `${protocol}://127.0.0.1:5174`, E2E_API_URL: 'http://127.0.0.1:3101', E2E_STAGE: 'true' },
+  env: { ...process.env, E2E_APP_URL: `${protocol}://127.0.0.1:5174`, E2E_API_URL: 'http://127.0.0.1:3101', E2E_STAGE: 'true', E2E_STAGE_MODE: process.argv[2] === '--live-read' ? 'live-read' : 'mock' },
   stdio: 'inherit',
 });
 child.on('exit', (code) => process.exitCode = code ?? 1);
