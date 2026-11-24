@@ -181,25 +181,41 @@ test.describe('Stage Catalog User Interface', () => {
     await expect(page.getByText('Scroll Album 51', { exact: true })).toBeVisible();
   });
 
-  test('Shows No Recent Sales When a Checked Release Has No Market Values', async ({ page }) => {
-    await page.route(/\/api\/cds\?.*/, (route) => route.fulfill({
-      contentType: 'application/json',
-      body: JSON.stringify({
-        items: [{
-          id: 73, artist: 'No Sale Data Artist', title: 'No Sale Data Album', year: 2001, country: 'US', label: 'Stage Records', format: 'CD, Album',
-          catalogNumber: 'NO-SALES-001', barcode: null, mediaCondition: 'Very Good Plus (VG+)', estimatedValue: 15,
-          notes: null, hasCover: false, discogsId: 900073, discogsUri: '/release/900073',
-          discogsLastSoldAt: null, discogsMarketLow: null, discogsMarketMedian: null, discogsMarketHigh: null,
-          discogsMarketCurrency: null, discogsMarketStatsCheckedAt: null,
-        }], total: 1, page: 1, pageSize: 24,
-      }),
-    }));
+  for (const { name, checkedAt, median, expected } of [
+    { name: 'unavailable without a completed check', checkedAt: null, median: null, expected: 'Sales history unavailable.' },
+    { name: 'empty after a completed check', checkedAt: '2026-11-24T12:00:00.000Z', median: null, expected: 'No sales data was returned.' },
+    { name: 'saved values after a completed check', checkedAt: '2026-11-24T12:00:00.000Z', median: 12.5, expected: '12.50' },
+    { name: 'saved values without a recorded check', checkedAt: null, median: 12.5, expected: '12.50' },
+  ]) {
+    test(`Shows sales history ${name}`, async ({ page }) => {
+      await page.route(/\/api\/cds\?.*/, (route) => route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          items: [{
+            id: 73, artist: 'No Sale Data Artist', title: 'No Sale Data Album', year: 2001, country: 'US', label: 'Stage Records', format: 'CD, Album',
+            catalogNumber: 'NO-SALES-001', barcode: null, mediaCondition: 'Very Good Plus (VG+)', estimatedValue: 15,
+            notes: null, hasCover: false, discogsId: 900073, discogsUri: null,
+            discogsLastSoldAt: null, discogsMarketLow: null, discogsMarketMedian: median, discogsMarketHigh: null,
+            discogsMarketCurrency: median == null ? null : 'USD', discogsMarketStatsCheckedAt: checkedAt,
+          }], total: 1, page: 1, pageSize: 24,
+        }),
+      }));
 
-    await page.goto('/');
-    await page.getByRole('button', { name: 'Catalog', exact: true }).click();
-    await page.getByText('No Sale Data Album', { exact: true }).click();
-    await expect(page.getByText('No recent sale detail found.', { exact: true })).toBeVisible();
-  });
+      await page.goto('/');
+      await page.getByRole('button', { name: 'Catalog', exact: true }).click();
+      await page.getByText('No Sale Data Album', { exact: true }).click();
+      const detail = page.getByRole('dialog', { name: /^Details for No Sale Data Artist/ });
+      const statistics = detail.locator('.discogs-market-stats');
+      await expect(statistics).toContainText(expected);
+      if (checkedAt) {
+        await expect(statistics).toContainText('Last checked:');
+      } else {
+        await expect(statistics).not.toContainText('Last checked:');
+      }
+      await expect(detail.getByRole('link', { name: 'View on Discogs', exact: true }))
+        .toHaveAttribute('href', 'https://www.discogs.com/release/900073');
+    });
+  }
 
   test('Closes the Catalog Details Menu When the Pointer Leaves It', async ({ page }) => {
     await page.goto('/');

@@ -319,8 +319,8 @@ export function useCatalogContextController(
       })
       .then((stats) => {
         if (cancelled) return;
-        const marketStatsStatus = stats.low == null && stats.median == null && stats.high == null
-          ? 'No recent Discogs sale detail found.'
+        const marketStatsStatus = stats.lastSoldAt == null && stats.low == null && stats.median == null && stats.high == null
+          ? 'No sales data was returned.'
           : '';
         const existing = searchReleaseDetailsCache.current.get(selectedRelease.id);
         if (existing) existing.marketStats = { stats, status: marketStatsStatus };
