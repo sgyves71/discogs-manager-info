@@ -285,7 +285,7 @@ export function createReleaseIntegrationsRouter({
       res.json({ ...stats, lastSoldAt: stats.lastSoldAt?.toISOString() ?? null });
     } catch (error) {
       console.error('Discogs market-statistics lookup failed:', error);
-      res.status(502).json({ error: 'Discogs could not provide market statistics right now.' });
+      res.status(502).json({ error: 'Discogs sales history unavailable. View the release on Discogs for details.' });
     }
   });
 

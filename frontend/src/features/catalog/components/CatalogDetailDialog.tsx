@@ -22,6 +22,12 @@ type Actions = {
 type Props = { entry: CdEntry; controller: CatalogDetailController; mediaConditions: string[]; saving: boolean; actions: Actions };
 
 export function CatalogDetailDialog({ entry, controller: c, mediaConditions, saving, actions }: Props) {
+  const hasSavedSales = Boolean(entry.discogsLastSoldAt) ||
+    [entry.discogsMarketLow, entry.discogsMarketMedian, entry.discogsMarketHigh].some((price) => price != null);
+  const discogsReleaseUrl = entry.discogsId
+    ? `https://www.discogs.com/release/${entry.discogsId}`
+    : entry.discogsUri ? `https://www.discogs.com${entry.discogsUri}` : null;
+
   return <div className="collection-detail-overlay" role="presentation" onMouseDown={(event) => {
     if (event.target === event.currentTarget) actions.close();
     else if (event.target instanceof Element && !event.target.closest('.detail-action-menu')) c.setDetailActionMenuOpen(false);
@@ -30,7 +36,7 @@ export function CatalogDetailDialog({ entry, controller: c, mediaConditions, sav
       <button type="button" className="dialog-close-button collection-detail-close" aria-label="Close catalog details" title="Close details" onClick={actions.close}>×</button>
       <div className="collection-detail-header">
         {c.detailCoverImage ? <img className="detail-cover" src={c.detailCoverImage} alt={`Cover art for ${entry.title}`} /> : <div className="detail-cover cover-placeholder">No cover art</div>}
-        <div><h3>{entry.artist} — {entry.title}</h3><p>{entry.format || 'Format unknown'}{entry.year ? ` • ${entry.year}` : ''}</p>{entry.discogsUri ? <a href={`https://www.discogs.com${entry.discogsUri}`} target="_blank" rel="noreferrer">View on Discogs</a> : null}</div>
+        <div><h3>{entry.artist} — {entry.title}</h3><p>{entry.format || 'Format unknown'}{entry.year ? ` • ${entry.year}` : ''}</p>{discogsReleaseUrl ? <a href={discogsReleaseUrl} target="_blank" rel="noreferrer">View on Discogs</a> : null}</div>
         <div className="collection-detail-controls"><div className="detail-action-menu" onMouseLeave={() => c.setDetailActionMenuOpen(false)}>
           <div className="detail-quick-actions">
             <button type="button" className="detail-quick-action" aria-label="Play album" title="Play album" onClick={actions.playAlbum}>▶</button>
@@ -51,7 +57,24 @@ export function CatalogDetailDialog({ entry, controller: c, mediaConditions, sav
       </div>
       {c.detailStatus ? <p className="hint">{c.detailStatus}</p> : null}
       <div className="detail-grid"><div><strong>Label:</strong> {entry.label || 'Not listed'}</div><div><strong>Country:</strong> {entry.country || 'Not listed'}</div><div><strong>Catalog Number:</strong> {entry.catalogNumber || 'Not listed'}</div>{entry.barcode ? <div><strong>Barcode:</strong> {entry.barcode}</div> : null}{entry.genre ? <div><strong>Genre:</strong> {entry.genre}</div> : null}{entry.style ? <div><strong>Style:</strong> {entry.style}</div> : null}<div><strong>Media Condition:</strong> {entry.mediaCondition || 'Not specified'}</div><div><strong>Estimated Value:</strong> {entry.estimatedValue != null ? `$${entry.estimatedValue.toFixed(2)}` : 'Not set'}{entry.estimatedValueReviewedAt ? ' (Manually Reviewed)' : ''}</div></div>
-      <div className="detail-section discogs-market-stats"><strong>Discogs Market Statistics</strong>{entry.discogsMarketStatsCheckedAt ? <><div className="detail-grid"><div><strong>Last Sold:</strong> {formatDiscogsMarketDate(entry.discogsLastSoldAt)}</div><div><strong>Low:</strong> {formatDiscogsMarketPrice(entry.discogsMarketLow, entry.discogsMarketCurrency)}</div><div><strong>Median:</strong> {formatDiscogsMarketPrice(entry.discogsMarketMedian, entry.discogsMarketCurrency)}</div><div><strong>High:</strong> {formatDiscogsMarketPrice(entry.discogsMarketHigh, entry.discogsMarketCurrency)}</div></div><p className="hint">Last checked: {formatDiscogsMarketDate(entry.discogsMarketStatsCheckedAt)}</p></> : <p className="hint">No recent sale detail found.</p>}</div>
+      <div className="detail-section discogs-market-stats">
+        <strong>Discogs Market Statistics</strong>
+        {hasSavedSales ? (
+          <div className="detail-grid">
+            <div><strong>Last Sold:</strong> {formatDiscogsMarketDate(entry.discogsLastSoldAt)}</div>
+            <div><strong>Low:</strong> {formatDiscogsMarketPrice(entry.discogsMarketLow, entry.discogsMarketCurrency)}</div>
+            <div><strong>Median:</strong> {formatDiscogsMarketPrice(entry.discogsMarketMedian, entry.discogsMarketCurrency)}</div>
+            <div><strong>High:</strong> {formatDiscogsMarketPrice(entry.discogsMarketHigh, entry.discogsMarketCurrency)}</div>
+          </div>
+        ) : (
+          <p className="hint">{entry.discogsMarketStatsCheckedAt
+            ? 'No sales data was returned.'
+            : 'Sales history unavailable.'}</p>
+        )}
+        {entry.discogsMarketStatsCheckedAt ? (
+          <p className="hint">Last checked: {formatDiscogsMarketDate(entry.discogsMarketStatsCheckedAt)}</p>
+        ) : null}
+      </div>
       <div className="detail-section"><strong>Discogs Release Match</strong><p className="hint">Release #{entry.discogsId ?? 'not selected'} controls this tracklist and release-specific metadata.</p><button type="button" className="secondary-button" onClick={() => actions.correctMatch(entry)}>Change Discogs Release</button></div>
       {c.editingCatalogDetails && c.catalogDetailsForm ? <CatalogDetailsEditor value={c.catalogDetailsForm} mediaConditions={mediaConditions} status={c.catalogDetailsStatus} saving={saving} onChange={c.setCatalogDetailsForm} onSave={actions.saveDetails} onCancel={() => { c.setEditingCatalogDetails(false); c.setCatalogDetailsForm(null); c.setCatalogDetailsStatus(''); }} /> : null}
       {c.editingEstimatedValue ? <EstimatedValueEditor value={c.estimatedValueInput} status={c.estimatedValueStatus} saving={saving} onChange={c.setEstimatedValueInput} onSave={actions.saveValue} onCancel={() => { c.setEditingEstimatedValue(false); c.setEstimatedValueStatus(''); }} /> : null}

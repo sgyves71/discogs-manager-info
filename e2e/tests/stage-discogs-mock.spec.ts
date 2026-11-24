@@ -60,6 +60,22 @@ test.describe('Stage Discogs Mock', () => {
     await expect(page.getByText(/synthetic artist used only for repeatable automated testing/i)).toHaveCount(0);
   });
 
+  test('Shows a failed sales lookup and still lets the user add the release', async ({ page }) => {
+    await page.route('**/api/discogs/releases/900101/market-stats', (route) => route.fulfill({
+      status: 502,
+      json: { error: 'Discogs sales history unavailable. View the release on Discogs for details.' },
+    }));
+    await page.goto('/');
+    await page.getByPlaceholder('Artist').fill('Stage Mock Artist');
+    await page.getByPlaceholder('Album Title').fill('Mocked CD Album');
+    await page.getByRole('button', { name: 'Look Up', exact: true }).click();
+    await page.getByText('Mocked CD Album', { exact: true }).click();
+    const selectedResult = page.locator('.result-card.selected');
+    await expect(selectedResult).toContainText('Discogs sales history unavailable.');
+    await expect(selectedResult).not.toContainText('No sales data was returned.');
+    await expect(selectedResult.getByRole('button', { name: 'Edit & Add', exact: true })).toBeEnabled();
+  });
+
   test('Filters Search Results by Country When Multiple Countries Are Available', async ({ page }) => {
     await page.goto('/');
     await page.getByPlaceholder('Artist').fill('Stage Mock Artist');

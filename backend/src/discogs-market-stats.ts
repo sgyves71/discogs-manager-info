@@ -29,6 +29,7 @@ type ParsedPrice = { value: number | null; currency: string | null };
 function decodeHtml(value: string): string {
   return value
     .replace(/&nbsp;/giu, ' ')
+    .replace(/&(?:ndash|mdash);|&#(?:8211|8212);/giu, '-')
     .replace(/&amp;/giu, '&')
     .replace(/&quot;/giu, '"')
     .replace(/&#39;/giu, "'");
@@ -50,24 +51,37 @@ function statisticContent(html: string, label: string): string | null {
   return expression.exec(html)?.groups?.value ?? null;
 }
 
-function parsePrice(content: string | null): ParsedPrice {
-  if (!content) return { value: null, currency: null };
+// Only explicit empty values inside the expected statistics rows count as no data.
+function isEmptyStatistic(content: string): boolean {
+  return /^(?:[-–—]+|N\/A|Not available|Never)$/iu.test(textContent(content));
+}
+
+function parsePrice(content: string): ParsedPrice {
+  if (isEmptyStatistic(content)) return { value: null, currency: null };
   const text = textContent(content);
-  const match = /(?<currency>US\$|CA\$|A\$|[$€£¥])?\s*(?<amount>\d[\d,]*(?:\.\d+)?)/u.exec(text);
-  if (!match?.groups?.amount) return { value: null, currency: null };
+  const match = /^(?<currency>US\$|CA\$|A\$|[$€£¥])?\s*(?<amount>(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)$/u.exec(text);
+  if (!match?.groups?.amount) throw new Error('Unrecognized Discogs market price format.');
   const value = Number(match.groups.amount.replace(/,/gu, ''));
-  if (!Number.isFinite(value)) return { value: null, currency: null };
+  if (!Number.isFinite(value)) throw new Error('Invalid Discogs market price.');
   const currency = ({ '$': 'USD', 'US$': 'USD', 'CA$': 'CAD', 'A$': 'AUD', '€': 'EUR', '£': 'GBP', '¥': 'JPY' } as Record<string, string>)[match.groups.currency ?? ''] ?? null;
   return { value, currency };
 }
 
 export function parseDiscogsMarketStats(html: string): DiscogsMarketStats {
   const section = /<section\b[^>]*\bid=["']release-stats["'][^>]*>(?<content>.*?)<\/section>/isu.exec(html)?.groups?.content;
-  if (!section) return { lastSoldAt: null, low: null, median: null, high: null, currency: null };
-  const lastSoldContent = statisticContent(section, 'Last Sold');
-  const dateValue = /<time\b[^>]*\bdatetime=["'](?<value>[^"']+)["']/isu.exec(lastSoldContent ?? '')?.groups?.value;
+  if (!section) throw new Error('Discogs release statistics section was not found.');
+  const statistic = (label: string) => {
+    const content = statisticContent(section, label);
+    if (content == null) throw new Error(`Discogs release statistics are missing the ${label} field.`);
+    return content;
+  };
+  const lastSoldContent = statistic('Last Sold');
+  const dateValue = /<time\b[^>]*\bdatetime=["'](?<value>[^"']+)["']/isu.exec(lastSoldContent)?.groups?.value;
   const lastSoldAt = dateValue && Number.isFinite(Date.parse(dateValue)) ? new Date(dateValue) : null;
-  const prices = [parsePrice(statisticContent(section, 'Low')), parsePrice(statisticContent(section, 'Median')), parsePrice(statisticContent(section, 'High'))];
+  if (!lastSoldAt && !isEmptyStatistic(lastSoldContent)) {
+    throw new Error('Unrecognized Discogs last-sold date.');
+  }
+  const prices = ['Low', 'Median', 'High'].map((label) => parsePrice(statistic(label)));
   return {
     lastSoldAt,
     low: prices[0].value,

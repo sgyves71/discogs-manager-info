@@ -15,10 +15,29 @@ test('parseDiscogsMarketStats Extracts Release Statistics by Label', () => {
   assert.equal(result.currency, 'USD');
 });
 
-test('parseDiscogsMarketStats Returns Nulls When Statistics Are Unavailable', () => {
-  assert.deepEqual(parseDiscogsMarketStats('<main>No market statistics</main>'), {
+const emptyStatistics = `
+  <section id="release-stats"><ul>
+    <li><span>Last Sold:</span><span>Never</span></li>
+    <li><span>Low:</span><span>&mdash;</span></li>
+    <li><span>Median:</span><span>N/A</span></li>
+    <li><span>High:</span><span>-</span></li>
+  </ul></section>
+`;
+
+test('parseDiscogsMarketStats accepts explicit empty values in the known layout', () => {
+  assert.deepEqual(parseDiscogsMarketStats(emptyStatistics), {
     lastSoldAt: null, low: null, median: null, high: null, currency: null,
   });
+});
+
+test('parseDiscogsMarketStats rejects an unexpected page even if it was fetched successfully', () => {
+  assert.throws(() => parseDiscogsMarketStats('<main>Request blocked</main>'), /statistics section was not found/);
+  assert.throws(() => parseDiscogsMarketStats(emptyStatistics.replace('Median:', 'Typical:')), /missing the Median field/);
+});
+
+test('parseDiscogsMarketStats rejects changed value formats', () => {
+  assert.throws(() => parseDiscogsMarketStats(emptyStatistics.replace('N/A', 'Unavailable for 3 regions')), /market price format/);
+  assert.throws(() => parseDiscogsMarketStats(emptyStatistics.replace('Never', '<time datetime="unknown">Unknown</time>')), /last-sold date/);
 });
 
 test('retainKnownDiscogsMarketStats Preserves Last Known Values When a Page Has No Statistics', () => {
