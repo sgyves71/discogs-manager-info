@@ -4,6 +4,14 @@ Discogs Manager is a local-first application for cataloging a CD collection. It 
 
 The engineering focus is testing the real application end to end while keeping test data and external services isolated. The application uses React and TypeScript, an Express API, and Prisma with SQLite. Playwright exercises the UI and API against synthetic Stage data.
 
+## What you can do
+
+- **Find the right release.** Search Discogs by artist, title, catalog number, or barcode. Scan a CD barcode with a phone camera when the app is served over HTTPS.
+- **Manage your collection.** Browse a searchable list or cover grid, record condition and notes, and correct a record linked to the wrong pressing.
+- **Research collection value.** Review available Discogs market data and record your own estimated values.
+- **Match and play local music.** Index a folder of tagged audio, match it to catalog releases, and play tracks from the local library.
+- **Sync to Discogs.** When a Discogs account is configured, check its collection and add missing releases. Sync does not remove remote entries.
+
 ## Start here
 
 | Evidence | What to look for |
