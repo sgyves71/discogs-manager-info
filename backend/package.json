@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node ../scripts/start-stage-backend.mjs --watch",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "typecheck:tests": "tsc -p tsconfig.tests.json",
     "prisma:generate": "prisma generate"
   },
